@@ -58,11 +58,11 @@ For your information, you can use the first parameter to determine whether a not
 # Usage
 ### Authenticate
 By default, the bot doesn't allow any communication until you authenticate with the previously set password in the configuration file. Here's an example:
-<img src="src/Screenshot_05.png" alt="Telegram Bot" height="auto" width="650" />
+<br><img src="src/Screenshot_05.png" alt="Telegram Bot" height="auto" width="600" />
 
 ### Receive informations about hosts and services
 Retrieving data manually is easy. After authentication, you should see a new icon next to the keyboard – the menu button. Open the menu and select an option. The bot will ask for necessary info and provide results (as seen in the examples).
 
 ### Enable and disable notifications
 You can enable or disable messages through the bot. "Loud" and "silent" notifications can also be toggled independently. Note that this setting is ONLY FOR YOU, and all other users will still receive their notifications as normal.
-<img src="src/Screenshot_06.png" alt="Telegram Bot" height="auto" width="650" />
+<br><img src="src/Screenshot_06.png" alt="Telegram Bot" height="auto" width="600" />
