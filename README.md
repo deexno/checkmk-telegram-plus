@@ -58,7 +58,7 @@ For your information, you can use the first parameter to determine whether a not
 # Usage
 ### Authenticate
 By default, the bot does not allow any communication until you have authenticated yourself to him (with the password that we have previously set in the configuration file). Here is an example to illustrate this:
-
+<img src="src/Screenshot_05.png" alt="Telegram Bot" height="auto" width="600" />
 
 ### Receive informations about hosts and services 
 
