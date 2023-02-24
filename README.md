@@ -7,7 +7,7 @@ This Telegram bot provides an interface to your CheckMK server. It allows you to
 <img src="src/Screenshot_03.png" alt="Telegram Bot" height="auto" width="320" />
 
 # Info
-This bot is not meant to be used in groups. it is meant to be used face to face. 
+This bot is NOT meant to be used in groups. it is meant to be used face to face. 
 
 # The Installation
 1. Install the required Python libraries
@@ -57,12 +57,12 @@ For your information, you can use the first parameter to determine whether a not
 
 # Usage
 ### Authenticate
-By default, the bot does not allow any communication until you have authenticated yourself to him (with the password that we have previously set in the configuration file). Here is an example to illustrate this:
+By default, the bot doesn't allow any communication until you authenticate with the previously set password in the configuration file. Here's an example:
 <img src="src/Screenshot_05.png" alt="Telegram Bot" height="auto" width="600" />
 
 ### Receive informations about hosts and services
-Retrieving data manually is very simple, after you have authenticated yourself you should see a new icon next to the keyboard, this is the menu button. Once you open the menu, you'll see all available options. Select one, and the bot will ask for necessary info. Once it has all the data, it will provide the results.
-(as seen in the examples)
+Retrieving data manually is easy. After authentication, you should see a new icon next to the keyboard – the menu button. Open the menu and select an option. The bot will ask for necessary info and provide results (as seen in the examples).
 
 ### Enable and disable notifications
 You can enable or disable messages through the bot. "Loud" and "silent" notifications can also be toggled independently. Note that this setting is ONLY FOR YOU, and all other users will still receive their notifications as normal.
+<img src="src/Screenshot_06.png" alt="Telegram Bot" height="auto" width="600" />
