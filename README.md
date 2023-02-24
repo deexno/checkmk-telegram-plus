@@ -1,5 +1,5 @@
 <img src="src/checkmk-telegram-bot-banner.png" alt="Telegram Bot" height="auto" />
-This Telegram bot provides an interface to your CheckMK server. It allows you to send automatic error messages (alerts) via Telegram and to manually read out information about hosts and services.
+This Telegram bot provides an interface to your Check_MK server. It allows you to send automatic error messages (alerts) via Telegram and to manually read out information about hosts and services.
 
 # Examples
 <img src="src/Screenshot_01.png" alt="Telegram Bot" height="auto" width="320" align="left" />
@@ -30,7 +30,7 @@ cp telegram_bot.py config.ini /opt/checkmk-telegram-plus/
 4. Fill in the following info in the configuration file: 
 - api_token (You get this token from the <a href="https://www.siteguarding.com/en/how-to-get-telegram-bot-api-token">BotFather</a> of Telegram)
 - password_for_authentication (This can be a password of your choice, which will be used later to authenticate to the bot)
-- site (Your OMD CheckMK site which you want to monitor)
+- site (Your OMD Check_MK site which you want to monitor)
 
 ```bash
 nano /opt/checkmk-telegram-plus/config.ini
@@ -44,7 +44,7 @@ systemctl enable --now checkmk-telegram-plus
 systemctl status checkmk-telegram-plus
 ```
 
-6. Copy the Notify Script into the CheckMK directory so that we can later create notificationrules which use our plugin.
+6. Copy the Notify Script into the Check_MK directory so that we can later create notificationrules which use our plugin.
 ```bash
 omd_site=<YOUR OMD SITENAME>
 cp telegram_plus_notify_listener /omd/sites/$omd_site/local/share/check_mk/notifications/
