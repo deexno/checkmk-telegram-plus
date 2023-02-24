@@ -7,7 +7,7 @@ This Telegram bot provides an interface to your CheckMK server. It allows you to
 <img src="src/Screenshot_03.png" alt="Telegram Bot" height="auto" width="320" />
 
 # Info
-This bot is NOT meant to be used in groups. it is meant to be used face to face. 
+This bot is NOT meant to be used in groups. 
 
 # The Installation
 1. Install the required Python libraries
