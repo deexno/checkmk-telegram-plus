@@ -1,0 +1,11 @@
+[Unit]
+Description=CheckMK Telegram Plus Service
+
+[Service]
+User=root
+WorkingDirectory=/opt/checkmk-telegram-plus/
+ExecStart=/usr/bin/python3 /opt/checkmk-telegram-plus/telegram_bot.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
