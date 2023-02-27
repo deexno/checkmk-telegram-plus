@@ -17,7 +17,7 @@ pip install python-telegram-bot python-telegram-bot[job-queue] python-telegram-b
 
 2. Download the content of this Git repository to your server
 ```bash
-git clone https://github.com/deexno/checkmk-telegram-plus.git .
+git clone https://github.com/deexno/checkmk-telegram-plus.git
 cd checkmk-telegram-plus
 ```
 
