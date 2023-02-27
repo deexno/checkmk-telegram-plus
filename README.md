@@ -48,7 +48,8 @@ systemctl status checkmk-telegram-plus
 ```bash
 omd_site=<YOUR OMD SITENAME>
 cp telegram_plus_notify_listener /omd/sites/$omd_site/local/share/check_mk/notifications/
-chmod +x /omd/sites/$omd_site/local/share/check_mk/notifications/telegram_plus_notify_listener
+chown $omd_site:$omd_site /omd/sites/$omd_site/local/share/check_mk/notifications/telegram_plus_notify_listener
+chmod 755 /omd/sites/$omd_site/local/share/check_mk/notifications/telegram_plus_notify_listener
 ```
 
 7. Create a rule that exports the notifications with our new Notification Plugin.
