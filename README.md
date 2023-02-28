@@ -2,10 +2,7 @@
 This Telegram bot provides an interface to your Check_MK server. It allows you to send automatic error messages (alerts) via Telegram and to manually read out information about hosts and services.
 
 # Examples
-<img src="src/Screenshot_01.png" alt="Telegram Bot" height="auto" width="320" align="left" />
-<img src="src/Screenshot_02.jpg" alt="Telegram Bot" height="auto" width="320" align="left" />
-<img src="src/Screenshot_03.png" alt="Telegram Bot" height="auto" width="320" />
-<img src="src/Screenshot_07.png" alt="Telegram Bot" height="auto" width="320" />
+<img src="src/Screenshot_01.png" width="23%"></img> <img src="src/Screenshot_02.jpg" width="23%"></img> <img src="src/Screenshot_03.png" width="23%"></img> <img src="src/Screenshot_07.png" width="23%"></img>
 
 # Info
 This bot is NOT meant to be used in groups. 
