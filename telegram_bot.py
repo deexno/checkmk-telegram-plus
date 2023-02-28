@@ -552,8 +552,14 @@ async def print_service_graphs(
         graphs = get_service_graphs(hostname, service)
 
         # Reply to the user with the graphs, chunked into groups of 10
-        for chunk in graphs:
-            await update.message.reply_media_group(media=chunk)
+        if len(graphs) > 0:
+            for chunk in graphs:
+                await update.message.reply_media_group(media=chunk)
+        else:
+            await update.message.reply_text(
+                "No graphs are available",
+                reply_markup=home_menu,
+            )
 
     except Exception as e:
         # If an error occurs, print the error and reply with an error message
@@ -561,7 +567,7 @@ async def print_service_graphs(
         logger.critical(e)
         await update.message.reply_text(
             "I'm sorry but while I was processing your request an "
-            "error occurred! (Maybe this service has no Graphs)",
+            "error occurred!",
             reply_markup=home_menu,
         )
 
@@ -913,26 +919,36 @@ async def post_print_service_graphs(
 
         try:
             await context.bot.send_message(
-                f"<u><b>📉 {description} GRAPH(s) FROM {hostname}</b></u>:\n"
+                text=f"<u><b>📉 {description} GRAPH(s) FROM "
+                f"{hostname}</b></u>:\n"
                 "This may take a second.",
                 chat_id=update.effective_user.id,
                 disable_notification=True,
                 parse_mode="HTML",
             )
+
             graphs = get_service_graphs(hostname, description)
 
-            for chunk in graphs:
-                await context.bot.send_media_group(
-                    media=chunk,
+            if len(graphs) > 0:
+                for chunk in graphs:
+                    await context.bot.send_media_group(
+                        media=chunk,
+                        chat_id=update.effective_user.id,
+                        disable_notification=True,
+                    )
+            else:
+                await context.bot.send_message(
+                    text="No graphs are available",
                     chat_id=update.effective_user.id,
-                    disable_notification=True,
+                    reply_markup=home_menu,
                 )
         except Exception as e:
             # If an error occurs, notify the user
             logger.critical(e)
-            await update.message.reply_text(
-                "I'm sorry but while I was processing your request an "
+            await context.bot.send_message(
+                text="I'm sorry but while I was processing your request an "
                 "error occurred!",
+                chat_id=update.effective_user.id,
                 reply_markup=home_menu,
             )
 
