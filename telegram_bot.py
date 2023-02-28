@@ -1,14 +1,18 @@
+import base64
 import configparser
 import html
 import logging
 import os
 import sys
 from datetime import datetime
+from pathlib import Path
 
+import requests
 from telegram import (
     BotCommand,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    InputMediaPhoto,
     KeyboardButton,
     ReplyKeyboardMarkup,
     Update,
@@ -70,6 +74,7 @@ home_menu = ReplyKeyboardMarkup(
             KeyboardButton(text="❗ GET ALL SERVICE PROBLEMS"),
             KeyboardButton(text="🔔 NOTIFICATION SETTINGS"),
         ],
+        [KeyboardButton(text="📉 GET SERVICE GRAPHS")],
     ],
     resize_keyboard=False,
     one_time_keyboard=True,
@@ -494,6 +499,76 @@ async def print_service_details(
     return ConversationHandler.END
 
 
+def get_service_graphs(hostname, service):
+    # Construct URL to request graphs of the specified service on the
+    # specified host
+    url = (
+        f"http://localhost:80/{omd_site}/check_mk/ajax_graph_images.py?"
+        f"host={hostname}&"
+        f"service={service}"
+    )
+
+    # Send a GET request to the constructed URL and retrieve the response
+    response = requests.get(url, allow_redirects=True, verify=False)
+
+    # Raise an exception if there was an HTTP error
+    response.raise_for_status()
+
+    # Parse the JSON response into a list of base64-encoded strings
+    # representing images
+    jsonResponse = response.json()
+
+    # Create a list of InputMediaPhoto objects from the decoded images
+    graphs = []
+    for graph in [base64.b64decode(s) for s in jsonResponse]:
+        graphs.append(InputMediaPhoto(graph))
+
+    # Split the graphs into groups of 10 or fewer, since Telegram's API has a
+    # limit on the number of media items per message
+    max_media_chunk_size = 10
+    chucked_graphs = []
+    for i in range(0, len(graphs), max_media_chunk_size):
+        chucked_graphs.append(graphs[i : i + max_media_chunk_size])
+
+    # Return the chunked graphs
+    return chucked_graphs
+
+
+async def print_service_graphs(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    # Extract hostname and service from user's message
+    hostname, service = update.message.text.split(" / ")
+
+    try:
+        # Reply to the user that we are processing their request
+        await update.message.reply_html(
+            f"<u><b>📉 {service} GRAPH(s) FROM {hostname}</b></u>:\n"
+            "This may take a second.",
+            reply_markup=home_menu,
+        )
+
+        # Get the graphs for the specified service on the specified host
+        graphs = get_service_graphs(hostname, service)
+
+        # Reply to the user with the graphs, chunked into groups of 10
+        for chunk in graphs:
+            await update.message.reply_media_group(media=chunk)
+
+    except Exception as e:
+        # If an error occurs, print the error and reply with an error message
+        print(e)
+        logger.critical(e)
+        await update.message.reply_text(
+            "I'm sorry but while I was processing your request an "
+            "error occurred! (Maybe this service has no Graphs)",
+            reply_markup=home_menu,
+        )
+
+    # End the conversation handler
+    return ConversationHandler.END
+
+
 async def get_host_problems(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> int:
@@ -755,12 +830,16 @@ async def change_notifications_setting(
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text(
-        "Conversation cancelled ❌",
-        reply_markup=home_menu,
-    )
-    # End the conversation handler
-    return ConversationHandler.END
+    if is_user_authenticated(update.effective_user.id):
+        await update.message.reply_text(
+            "Conversation cancelled ❌",
+            reply_markup=home_menu,
+        )
+        log_authenticated_access(update.effective_user.username, "/cancel")
+        # End the conversation handler
+        return ConversationHandler.END
+    else:
+        log_authenticated_access(update.effective_user.username, "/cancel")
 
 
 async def recheck(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -770,7 +849,7 @@ async def recheck(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             # Parse the data from the inline button callback query
             query = update.callback_query
             await query.answer()
-            description, hostname, recheck_id = query.data.split(",")
+            type, description, hostname, recheck_id = query.data.split(",")
             recheck_id = int(recheck_id) + 1
 
             # Call a function to get the status of the server or service
@@ -793,10 +872,17 @@ async def recheck(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                         [
                             InlineKeyboardButton(
                                 "🔂 RECHECK",
-                                callback_data=f"{description},"
+                                callback_data=f"recheck,"
+                                f"{description},"
                                 f"{hostname},"
-                                f"{recheck_id}",
-                            )
+                                "0",
+                            ),
+                            InlineKeyboardButton(
+                                "📉 GET SERVICE GRAPHS",
+                                callback_data=f"graph,"
+                                f"{description},"
+                                f"{hostname}",
+                            ),
                         ]
                     ]
                 ),
@@ -814,6 +900,41 @@ async def recheck(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             )
     else:
         log_unauthenticated_access(update.effective_user.username, "recheck")
+
+
+async def post_print_service_graphs(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    # Check if the user is authenticated to use the bot
+    if is_user_authenticated(update.effective_user.id):
+        query = update.callback_query
+        await query.answer()
+        type, description, hostname = query.data.split(",")
+
+        try:
+            await context.bot.send_message(
+                f"<u><b>📉 {description} GRAPH(s) FROM {hostname}</b></u>:\n"
+                "This may take a second.",
+                chat_id=update.effective_user.id,
+                disable_notification=True,
+                parse_mode="HTML",
+            )
+            graphs = get_service_graphs(hostname, description)
+
+            for chunk in graphs:
+                await context.bot.send_media_group(
+                    media=chunk,
+                    chat_id=update.effective_user.id,
+                    disable_notification=True,
+                )
+        except Exception as e:
+            # If an error occurs, notify the user
+            logger.critical(e)
+            await update.message.reply_text(
+                "I'm sorry but while I was processing your request an "
+                "error occurred!",
+                reply_markup=home_menu,
+            )
 
 
 async def send_automatic_notification(context: ContextTypes.DEFAULT_TYPE):
@@ -858,22 +979,28 @@ async def send_automatic_notification(context: ContextTypes.DEFAULT_TYPE):
     # Send the message to all the recipients in the recipient list
     for recipient in recipient_list:
         if recipient.isnumeric():
+            reply_markup = [
+                InlineKeyboardButton(
+                    "🔂 RECHECK",
+                    callback_data=f"recheck,{description},{hostname},0",
+                )
+            ]
+
+            if description != "":
+                reply_markup.append(
+                    InlineKeyboardButton(
+                        "📉 GET SERVICE GRAPHS",
+                        callback_data=f"graph,{description},{hostname}",
+                    ),
+                )
+
             await context.bot.send_message(
                 chat_id=recipient,
                 disable_notification=True
                 if type == "notifications_silent"
                 else False,
                 text=message,
-                reply_markup=InlineKeyboardMarkup(
-                    [
-                        [
-                            InlineKeyboardButton(
-                                "🔂 RECHECK",
-                                callback_data=f"{description},{hostname},0",
-                            )
-                        ]
-                    ]
-                ),
+                reply_markup=InlineKeyboardMarkup([reply_markup]),
                 parse_mode="HTML",
             )
 
@@ -997,8 +1124,30 @@ def main() -> None:
         )
     )
 
+    # "📉 GET SERVICE GRAPHS" command
+    bot_handler.add_handler(
+        ConversationHandler(
+            entry_points=[
+                MessageHandler(
+                    filters.Regex("^(📉 GET SERVICE GRAPHS)$"), get_host_group
+                )
+            ],
+            states={
+                HOSTGROUP: [MessageHandler(filters.TEXT, get_host_name)],
+                HOSTNAME: [MessageHandler(filters.TEXT, get_service_name)],
+                SERVICE: [MessageHandler(filters.TEXT, print_service_graphs)],
+            },
+            fallbacks=[],
+        )
+    )
+
     # Add callback handler for "🔂 RECHECK" button
-    bot_handler.add_handler(CallbackQueryHandler(recheck))
+    bot_handler.add_handler(CallbackQueryHandler(recheck, pattern="^recheck,"))
+
+    # Add callback handler for "📉 GET SERVICE GRAPHS" button
+    bot_handler.add_handler(
+        CallbackQueryHandler(post_print_service_graphs, pattern="^graph,")
+    )
 
     # Start polling for updates
     bot_handler.run_polling()
