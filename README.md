@@ -3,8 +3,9 @@ This Telegram bot provides an interface to your Check_MK server. It allows you t
 
 # Examples
 <img src="src/Screenshot_01.png" alt="Telegram Bot" height="auto" width="320" align="left" />
-<img src="src/Screenshot_02.jfif" alt="Telegram Bot" height="auto" width="320" align="left" />
+<img src="src/Screenshot_02.jpg" alt="Telegram Bot" height="auto" width="320" align="left" />
 <img src="src/Screenshot_03.png" alt="Telegram Bot" height="auto" width="320" />
+<img src="src/Screenshot_07.png" alt="Telegram Bot" height="auto" width="320" />
 
 # Info
 This bot is NOT meant to be used in groups. 
