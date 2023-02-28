@@ -89,7 +89,8 @@ livestatus_connection = livestatus.SingleSiteConnection(livestatus_socket_path)
 
 # Set path of query for notifications
 notify_query_path = f"{omd_site_dir}/tmp/telegram_plus"
-
+# Create Query Path if it does not exist
+Path(notify_query_path).mkdir(parents=True, exist_ok=True)
 
 # Function to set bot commands
 async def post_init(bot_handler: Application) -> None:
