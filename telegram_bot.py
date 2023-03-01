@@ -3,6 +3,7 @@ import configparser
 import html
 import logging
 import os
+import pwd
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -91,6 +92,10 @@ livestatus_connection = livestatus.SingleSiteConnection(livestatus_socket_path)
 notify_query_path = f"{omd_site_dir}/tmp/telegram_plus"
 # Create Query Path if it does not exist
 Path(notify_query_path).mkdir(parents=True, exist_ok=True)
+# Change the owner of the folder on the OMD page.
+omd_uid = pwd.getpwnam(omd_site).pw_uid
+os.chown(notify_query_path, omd_uid, omd_uid)
+
 
 # Function to set bot commands
 async def post_init(bot_handler: Application) -> None:
