@@ -13,7 +13,7 @@ bot_password=$3
 telegram_plus_dir=/omd/sites/$omd_site/local/share/checkmk-telegram-plus
 telegram_plus_service_name=checkmk-telegram-plus-$omd_site.service
 
-programs=(git runuser pip sed)
+programs=(git runuser pip3 sed)
 
 for program in "${programs[@]}"; do
     if ! command -v "$program" > /dev/null 2>&1; then
@@ -24,7 +24,7 @@ done
 
 mkdir $telegram_plus_dir
 
-pip install --target=$telegram_plus_dir python-telegram-bot python-telegram-bot[job-queue] python-telegram-bot[callback-data] watchdog
+pip3 install --target=$telegram_plus_dir python-telegram-bot python-telegram-bot[job-queue] python-telegram-bot[callback-data] watchdog
 
 git clone https://github.com/deexno/checkmk-telegram-plus.git
 cd checkmk-telegram-plus
