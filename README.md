@@ -7,50 +7,18 @@ This Telegram bot provides an interface to your Check_MK server. It allows you t
 # Info
 This bot is NOT meant to be used in groups. 
 
-# The Installation
-1. Install the required Python libraries
+# The Installation / Update process
+1. Install the bot. <br>
+Replace the variables in <> with your respective information.<br>
+- omd_site_name (Your OMD Check_MK site which you want to monitor)
+- api_token (You get this token from the BotFather of Telegram)
+- bot_password (This can be a password of your choice, which will be used later to authenticate to the bot)
 ```bash
-pip install python-telegram-bot python-telegram-bot[job-queue] python-telegram-bot[callback-data] watchdog
+wget https://raw.githubusercontent.com/deexno/checkmk-telegram-plus/main/install.sh
+bash install.sh <omd_site_name> <api_token> <bot_password>
 ```
 
-2. Download the content of this Git repository to your server
-```bash
-git clone https://github.com/deexno/checkmk-telegram-plus.git
-cd checkmk-telegram-plus
-```
-
-3. Copy all components of the telegram bot into a path of your choice. For example, under /opt/checkmk-telegram-plus/
-```bash
-mkdir /opt/checkmk-telegram-plus/
-cp telegram_bot.py config.ini /opt/checkmk-telegram-plus/
-```
-
-4. Fill in the following info in the configuration file: 
-- api_token (You get this token from the <a href="https://www.siteguarding.com/en/how-to-get-telegram-bot-api-token">BotFather</a> of Telegram)
-- password_for_authentication (This can be a password of your choice, which will be used later to authenticate to the bot)
-- site (Your OMD Check_MK site which you want to monitor)
-
-```bash
-nano /opt/checkmk-telegram-plus/config.ini
-```
-
-5. Create a service that always runs the bot at system startup.
-```bash
-cp checkmk-telegram-plus.service /etc/systemd/system/
-systemctl daemon-reload
-systemctl enable --now checkmk-telegram-plus
-systemctl status checkmk-telegram-plus
-```
-
-6. Copy the Notify Script into the Check_MK directory so that we can later create notification rules which use our plugin.
-```bash
-omd_site=<YOUR OMD SITENAME>
-cp telegram_plus_notify_listener /omd/sites/$omd_site/local/share/check_mk/notifications/
-chown $omd_site:$omd_site /omd/sites/$omd_site/local/share/check_mk/notifications/telegram_plus_notify_listener
-chmod 755 /omd/sites/$omd_site/local/share/check_mk/notifications/telegram_plus_notify_listener
-```
-
-7. Create a rule that exports the notifications with our new Notification Plugin.
+2. Create a rule that exports the notifications using our new Notification Plugin.
 <img src="src/Screenshot_04.png" alt="Telegram Bot" height="auto" width="700" />
 For your information, you can use the first parameter to determine whether a notification should be sent loud (notifications_loud) or silent (notifications_silent). Silent notifications pop up in the chat, but the device does not vibrate or make a notification sound. This method can be used, for example, to differentiate between important and unimportant notifications.
 
