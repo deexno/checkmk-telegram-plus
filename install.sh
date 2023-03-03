@@ -43,7 +43,6 @@ chmod -R 755 $telegram_plus_dir
 
 systemctl daemon-reload
 systemctl enable --now $telegram_plus_service_name
-systemctl status $telegram_plus_service_name
 
 cp resources/telegram_plus_notify_listener /omd/sites/$omd_site/local/share/check_mk/notifications/
 chown $omd_site:$omd_site /omd/sites/$omd_site/local/share/check_mk/notifications/telegram_plus_notify_listener
