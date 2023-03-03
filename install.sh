@@ -24,7 +24,10 @@ done
 
 mkdir $telegram_plus_dir
 
-pip3 install --target=$telegram_plus_dir python-telegram-bot python-telegram-bot[job-queue] python-telegram-bot[callback-data] watchdog
+pip3 install --target=$telegram_plus_dir python-telegram-bot
+pip3 install --target=$telegram_plus_dir python-telegram-bot[job-queue] python-telegram-bot[callback-data] watchdog
+pip3 install --target=$telegram_plus_dir python-telegram-bot[callback-data]
+pip3 install --target=$telegram_plus_dir watchdog
 
 git clone https://github.com/deexno/checkmk-telegram-plus.git
 cd checkmk-telegram-plus
