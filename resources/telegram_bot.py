@@ -36,7 +36,7 @@ config.read("config.ini")
 
 # Get Open Monitoring Distribution (OMD) site
 omd_site = config["check_mk"]["site"]
-omd_site_dir = f"/omd/sites/{omd_site}"
+omd_site_dir = os.path.join("/", "omd", "sites", omd_site)
 
 logger = logging.getLogger(__name__)
 formatter = logging.Formatter(
@@ -55,7 +55,7 @@ logger.addHandler(log_file_handler)
 telegram_bot_token = config["telegram_bot"]["api_token"]
 
 # Define constants for conversation handler
-HOSTGROUP, HOSTNAME, SERVICE, PW, NOTIFICATION_SETTING = range(5)
+HOSTGROUP, HOSTNAME, SERVICE, PW, NOTIFICATION_SETTING, OPTION = range(6)
 
 # Save the home menu in a variable so that it can be reused in
 # several locations later.
@@ -76,6 +76,9 @@ home_menu = ReplyKeyboardMarkup(
         [
             KeyboardButton(text="📉 GET SERVICE GRAPHS"),
             KeyboardButton(text="🔄 RESCHEDULE CHECK"),
+        ],
+        [
+            KeyboardButton(text="⚙️ ADMIN SETTINGS"),
         ],
     ],
     resize_keyboard=False,
@@ -180,6 +183,14 @@ def get_state_details(val):
         return "", "???"
 
 
+# Method to get the state "details"
+def update_config(key, value):
+    config.set("telegram_bot", key, value)
+
+    with open("config.ini", "w") as configfile:
+        config.write(configfile)
+
+
 # Method to initially start the conversation with the bot
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # Get the userdetails
@@ -194,7 +205,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             "/menu. If you need help just try /help",
             reply_markup=home_menu,
         )
-        log_authenticated_access(user.username, "/start")
+        log_authenticated_access(user.username, update.message.text)
     else:
         # Send error message to the user if not authenticated
         await update.message.reply_text(
@@ -215,9 +226,13 @@ async def help_command(
         # Send help message
         # Still needs to be written lol
         await update.message.reply_text("Help!")
-        log_authenticated_access(update.effective_user.username, "/help")
+        log_authenticated_access(
+            update.effective_user.username, update.message.text
+        )
     else:
-        log_unauthenticated_access(update.effective_user.username, "/help")
+        log_unauthenticated_access(
+            update.effective_user.username, update.message.text
+        )
 
 
 # Method to get the host name
@@ -293,7 +308,7 @@ async def get_host_group(
                 ),
             )
             log_authenticated_access(
-                update.effective_user.username, "⭕ GET HOST STATUS"
+                update.effective_user.username, update.message.text
             )
 
         # Catch any exception that may occur
@@ -307,7 +322,7 @@ async def get_host_group(
         return HOSTGROUP
     else:
         log_unauthenticated_access(
-            update.effective_user.username, "⭕ GET HOST STATUS"
+            update.effective_user.username, update.message.text
         )
 
 
@@ -723,11 +738,13 @@ async def get_service_problems(
     return ConversationHandler.END
 
 
-async def get_pw(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def get_pw_for_auth(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> int:
     # Check if the user is not already authenticated
     if not is_user_authenticated(update.effective_user.id):
         # If the user is not authenticated ask for the password
-        await update.message.reply_text("What is the password?!")
+        await update.message.reply_text("What is the password?")
         return PW
     else:
         # If user is already authenticated, end the conversation
@@ -749,12 +766,11 @@ async def try_to_authenticate(
 
         # If the user is not already allowed, add their user ID to the
         # allowed_users list
-        if not str(user.id) in allowed_users:
-            allowed_users = f"{allowed_users}{user.id},"
-            config.set("telegram_bot", "allowed_users", allowed_users)
-
-            with open("config.ini", "w") as configfile:
-                config.write(configfile)
+        if str(user.id) not in allowed_users:
+            allowed_users = (
+                f"{allowed_users}{update.effective_user.username} ({user.id}),"
+            )
+            update_config("allowed_users", allowed_users)
 
         # Let the user know they have successfully authenticated
         await update.message.reply_text(
@@ -857,12 +873,7 @@ async def change_notifications_setting(
                 f"{update.effective_user.id},", ""
             )
 
-        # Update the configuration file with the new notification settings
-        config.set("telegram_bot", setting, current_setting)
-
-        # Save the updated configuration file
-        with open("config.ini", "w") as configfile:
-            config.write(configfile)
+        update_config(setting, current_setting)
 
         # Notify the user that their setting has been changed
         await update.message.reply_text("✅ DONE", reply_markup=home_menu)
@@ -884,11 +895,15 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             "Conversation cancelled ❌",
             reply_markup=home_menu,
         )
-        log_authenticated_access(update.effective_user.username, "/cancel")
+        log_authenticated_access(
+            update.effective_user.username, update.message.text
+        )
         # End the conversation handler
         return ConversationHandler.END
     else:
-        log_authenticated_access(update.effective_user.username, "/cancel")
+        log_authenticated_access(
+            update.effective_user.username, update.message.text
+        )
 
 
 async def recheck(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -937,7 +952,9 @@ async def recheck(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 ),
                 parse_mode="HTML",
             )
-            log_authenticated_access(update.effective_user.username, "recheck")
+            log_authenticated_access(
+                update.effective_user.username, update.message.text
+            )
         except Exception as e:
             # Handle errors by editing the message with an error message and
             # the home menu button
@@ -948,7 +965,9 @@ async def recheck(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 reply_markup=home_menu,
             )
     else:
-        log_unauthenticated_access(update.effective_user.username, "recheck")
+        log_unauthenticated_access(
+            update.effective_user.username, update.message.text
+        )
 
 
 async def post_print_service_graphs(
@@ -1067,7 +1086,370 @@ async def send_automatic_notification(context: ContextTypes.DEFAULT_TYPE):
     os.remove(context.job.data)
 
 
+async def open_admin_settings(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    try:
+        if is_user_authenticated(update.effective_user.id):
+            # Read the configuration file to get the current
+            # notification settings
+            config.read("config.ini")
+
+            # Notify the user that their setting has been changed
+            await update.message.reply_text(
+                "ADMINISTATOR SETTINGS WERE OPENED",
+                reply_markup=ReplyKeyboardMarkup(
+                    [
+                        [
+                            KeyboardButton(text="📖 GET LOGS"),
+                        ],
+                        [
+                            KeyboardButton(text="🔓 GET PASSWORD"),
+                            KeyboardButton(text="🔒 CHANGE PASSWORD"),
+                        ],
+                        [
+                            KeyboardButton(text="👥 LIST USERS"),
+                            KeyboardButton(text="🗑️ DELETE USERS"),
+                        ],
+                        [
+                            KeyboardButton(text="⬆️ CHECK FOR UPDATES"),
+                            KeyboardButton(text="🔔 LIST NOTIFY QUEUE"),
+                        ],
+                    ],
+                    resize_keyboard=False,
+                    one_time_keyboard=True,
+                    input_field_placeholder="Choose an option",
+                ),
+            )
+        else:
+            log_unauthenticated_access(
+                update.effective_user.username, update.message.text
+            )
+    except Exception as e:
+        # If an error occurs, notify the user
+        logger.critical(e)
+        await update.message.reply_text(
+            "I'm sorry but while I was processing your request an "
+            "error occurred!",
+            reply_markup=home_menu,
+        )
+    # End the conversation handler
+    return ConversationHandler.END
+
+
+async def get_logs(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    try:
+        if is_user_authenticated(update.effective_user.id):
+            log_path = os.path.join(omd_site_dir, "var", "log")
+            log_file_path = os.path.join(log_path, "telegram-plus.log")
+
+            log_file = open(log_file_path)
+            logs = html.escape(log_file.read())
+            log_file.close()
+
+            events = "<u><b>HERE ARE THE LAST 25 LOG ENTRIES:</b></u>:\n\n"
+
+            for event in logs.split("\n")[:25]:
+                event = event.replace("CRITICAL:", "🛑 CRITICAL\n")
+                event = event.replace("WARNING:", "⚠ WARNING\n")
+
+                events += f"<code>{event}</code>\n\n"
+
+            await update.message.reply_html(
+                events,
+                reply_markup=home_menu,
+            )
+            log_authenticated_access(
+                update.effective_user.username, update.message.text
+            )
+        else:
+            log_unauthenticated_access(
+                update.effective_user.username, update.message.text
+            )
+
+    except Exception as e:
+        logger.critical(e)
+        await update.message.reply_text(
+            "I'm sorry but while I was processing your request an "
+            "error occurred!",
+            reply_markup=home_menu,
+        )
+
+    return ConversationHandler.END
+
+
+async def display_password(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    try:
+        if is_user_authenticated(update.effective_user.id):
+            await update.message.reply_text(
+                config["telegram_bot"]["password_for_authentication"],
+                reply_markup=home_menu,
+            )
+            log_authenticated_access(
+                update.effective_user.username, update.message.text
+            )
+        else:
+            log_unauthenticated_access(
+                update.effective_user.username, update.message.text
+            )
+
+    except Exception as e:
+        logger.critical(e)
+        await update.message.reply_text(
+            "I'm sorry but while I was processing your request an "
+            "error occurred!",
+            reply_markup=home_menu,
+        )
+
+    return ConversationHandler.END
+
+
+async def get_pw(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if is_user_authenticated(update.effective_user.id):
+        await update.message.reply_text("What is the password?")
+        log_authenticated_access(
+            update.effective_user.username, update.message.text
+        )
+
+        return PW
+    else:
+        log_unauthenticated_access(
+            update.effective_user.username, update.message.text
+        )
+        return ConversationHandler.END
+
+
+async def change_password(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    try:
+        update_config("password_for_authentication", update.message.text)
+
+        await update.message.reply_text(
+            "✅ DONE",
+            reply_markup=home_menu,
+        )
+    except Exception as e:
+        logger.critical(e)
+        await update.message.reply_text(
+            "I'm sorry but while I was processing your request an "
+            "error occurred!",
+            reply_markup=home_menu,
+        )
+
+    return ConversationHandler.END
+
+
+async def list_users(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    try:
+        if is_user_authenticated(update.effective_user.id):
+            allowed_users = config["telegram_bot"]["allowed_users"]
+            users_notify_l = config["telegram_bot"]["notifications_loud"]
+            users_notify_s = config["telegram_bot"]["notifications_silent"]
+
+            await update.message.reply_html(
+                "<u><b>ALLOWED USERS</b></u>:\n"
+                f"{allowed_users}"
+                "\n\n<u><b>USERS WITH ACTIVE NOTIFICATIONS (LOUD)</b></u>:\n"
+                f"{users_notify_l}"
+                "\n\n<u><b>USERS WITH ACTIVE NOTIFICATIONS (SILENT)</b></u>:\n"
+                f"{users_notify_s}",
+                reply_markup=home_menu,
+            )
+
+            log_authenticated_access(
+                update.effective_user.username, update.message.text
+            )
+        else:
+            log_unauthenticated_access(
+                update.effective_user.username, update.message.text
+            )
+
+    except Exception as e:
+        logger.critical(e)
+        await update.message.reply_text(
+            "I'm sorry but while I was processing your request an "
+            "error occurred!",
+            reply_markup=home_menu,
+        )
+
+    return ConversationHandler.END
+
+
+async def get_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    try:
+        if is_user_authenticated(update.effective_user.id):
+            users = []
+
+            for user in config["telegram_bot"]["allowed_users"].split(","):
+                if not user == "":
+                    users.append(KeyboardButton(text=str(user)))
+
+            await update.message.reply_text(
+                "Select a user!",
+                reply_markup=ReplyKeyboardMarkup.from_column(
+                    users,
+                    resize_keyboard=False,
+                    one_time_keyboard=True,
+                    input_field_placeholder="SELECT A HOSTGROUP IN THE MENU",
+                ),
+            )
+            log_authenticated_access(
+                update.effective_user.username, update.message.text
+            )
+
+            return OPTION
+        else:
+            log_unauthenticated_access(
+                update.effective_user.username, update.message.text
+            )
+
+    except Exception as e:
+        logger.critical(e)
+        await update.message.reply_text(
+            "I'm sorry but while I was processing your request an "
+            "error occurred!",
+            reply_markup=home_menu,
+        )
+
+    return ConversationHandler.END
+
+
+async def delete_user(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    try:
+        allowed_users = config["telegram_bot"]["allowed_users"]
+        allowed_users = allowed_users.replace(f"{update.message.text},", "")
+        update_config("allowed_users", allowed_users)
+
+        await update.message.reply_text(
+            "✅ DONE",
+            reply_markup=home_menu,
+        )
+    except Exception as e:
+        logger.critical(e)
+        await update.message.reply_text(
+            "I'm sorry but while I was processing your request an "
+            "error occurred!",
+            reply_markup=home_menu,
+        )
+
+    return ConversationHandler.END
+
+
+async def list_notify_queue(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    try:
+        if is_user_authenticated(update.effective_user.id):
+            files = os.listdir(notify_query_path)
+
+            await update.message.reply_text(
+                "🚫 EMPTY" if len(files) == 0 else f"({len(files)}) {files}",
+                reply_markup=home_menu,
+            )
+            log_authenticated_access(
+                update.effective_user.username, update.message.text
+            )
+
+        else:
+            log_unauthenticated_access(
+                update.effective_user.username, update.message.text
+            )
+
+    except Exception as e:
+        logger.critical(e)
+        await update.message.reply_text(
+            "I'm sorry but while I was processing your request an "
+            "error occurred!",
+            reply_markup=home_menu,
+        )
+
+    return ConversationHandler.END
+
+
+async def check_for_updates(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    try:
+        if is_user_authenticated(update.effective_user.id):
+            version_details = requests.get(
+                "https://api.github.com/repos/"
+                "deexno/checkmk-telegram-plus/releases/latest"
+            )
+
+            version_installed = "No"
+
+            if config.has_option("telegram_bot", "version"):
+                version_installed = (
+                    f"Yes ({config['telegram_bot']['version']})"
+                    if version_details.json()["tag_name"]
+                    == config["telegram_bot"]["version"]
+                    else f"No ({config['telegram_bot']['version']})"
+                )
+
+            await update.message.reply_html(
+                "<u><b>BOT LATEST VERSION - DETAILS:</b></u>\n\n"
+                f"LATEST VERSION: {version_details.json()['tag_name']}\n"
+                f"VERSION INSTALLED: {version_installed}\n"
+                f"PUPLISHED AT: {version_details.json()['published_at']}\n\n"
+                "<u><b>CHANGES:</b></u>\n"
+                f"{version_details.json()['body']}\n\n"
+                "<a href='https://github.com/deexno/checkmk-telegram-plus'>"
+                "OPEN THE UPDATE/INSTALLATION GUIDE</a>",
+                reply_markup=home_menu,
+            )
+
+    except Exception as e:
+        logger.critical(e)
+        await update.message.reply_text(
+            "I'm sorry but while I was processing your request an "
+            "error occurred!",
+            reply_markup=home_menu,
+        )
+
+    return ConversationHandler.END
+
+
+async def message_all_users(context: ContextTypes.DEFAULT_TYPE):
+    # Read the recipient list for the corresponding notification type from the
+    # config file
+    config.read("config.ini")
+    recipient_list = []
+
+    for recipient in config["telegram_bot"]["allowed_users"].split(","):
+        if recipient.isnumeric():
+            # For older versions simply add the userid
+            recipient_list.append(recipient)
+        else:
+            # For newer versions, extract the user ID from the user information
+            recipient = recipient.split("(")[
+                len(recipient.split("(")) - 1
+            ].split(")")[0]
+
+            if recipient != "":
+                recipient_list.append(recipient)
+
+    # Send the message to all the recipients in the recipient list
+    for recipient in recipient_list:
+        if recipient.isnumeric():
+            await context.bot.send_message(
+                chat_id=recipient,
+                disable_notification=False,
+                text=context.job.data,
+                reply_markup=home_menu,
+                parse_mode="HTML",
+            )
+
+
 def main() -> None:
+    bot_handler_job_queue.run_once(message_all_users, 0, data="I'm BACK! 🤖")
+
     # Add command handlers
     bot_handler.add_handler(CommandHandler("start", start))
     bot_handler.add_handler(CommandHandler("menu", start))
@@ -1159,7 +1541,7 @@ def main() -> None:
     # "authenticate" command
     bot_handler.add_handler(
         ConversationHandler(
-            entry_points=[CommandHandler("authenticate", get_pw)],
+            entry_points=[CommandHandler("authenticate", get_pw_for_auth)],
             states={PW: [MessageHandler(filters.TEXT, try_to_authenticate)]},
             fallbacks=[],
         )
@@ -1216,6 +1598,103 @@ def main() -> None:
         )
     )
 
+    # "⚙️ ADMIN SETTINGS" command
+    bot_handler.add_handler(
+        ConversationHandler(
+            entry_points=[
+                MessageHandler(
+                    filters.Regex("^(⚙️ ADMIN SETTINGS)$"), open_admin_settings
+                )
+            ],
+            states={},
+            fallbacks=[],
+        )
+    )
+
+    # "📖 GET LOGS" command
+    bot_handler.add_handler(
+        ConversationHandler(
+            entry_points=[
+                MessageHandler(filters.Regex("^(📖 GET LOGS)$"), get_logs)
+            ],
+            states={},
+            fallbacks=[],
+        )
+    )
+
+    # "🔓 GET PASSWORD" command
+    bot_handler.add_handler(
+        ConversationHandler(
+            entry_points=[
+                MessageHandler(
+                    filters.Regex("^(🔓 GET PASSWORD)$"), display_password
+                )
+            ],
+            states={},
+            fallbacks=[],
+        )
+    )
+
+    # "🔒 CHANGE PASSWORD" command
+    bot_handler.add_handler(
+        ConversationHandler(
+            entry_points=[
+                MessageHandler(filters.Regex("^(🔒 CHANGE PASSWORD)$"), get_pw)
+            ],
+            states={PW: [MessageHandler(filters.TEXT, change_password)]},
+            fallbacks=[],
+        )
+    )
+
+    # "👥 LIST USERS" command
+    bot_handler.add_handler(
+        ConversationHandler(
+            entry_points=[
+                MessageHandler(filters.Regex("^(👥 LIST USERS)$"), list_users)
+            ],
+            states={},
+            fallbacks=[],
+        )
+    )
+
+    # "🗑️ DELETE USERS" command
+    bot_handler.add_handler(
+        ConversationHandler(
+            entry_points=[
+                MessageHandler(filters.Regex("^(🗑️ DELETE USERS)$"), get_user)
+            ],
+            states={OPTION: [MessageHandler(filters.TEXT, delete_user)]},
+            fallbacks=[],
+        )
+    )
+
+    # "⬆️ CHECK FOR UPDATES" command
+    bot_handler.add_handler(
+        ConversationHandler(
+            entry_points=[
+                MessageHandler(
+                    filters.Regex("^(⬆️ CHECK FOR UPDATES)$"),
+                    check_for_updates,
+                )
+            ],
+            states={},
+            fallbacks=[],
+        )
+    )
+
+    # "🔔 LIST NOTIFY QUEUE" command
+    bot_handler.add_handler(
+        ConversationHandler(
+            entry_points=[
+                MessageHandler(
+                    filters.Regex("^(🔔 LIST NOTIFY QUEUE)$"), list_notify_queue
+                )
+            ],
+            states={},
+            fallbacks=[],
+        )
+    )
+
     # Add callback handler for "🔂 RECHECK" button
     bot_handler.add_handler(CallbackQueryHandler(recheck, pattern="^recheck,"))
 
@@ -1244,4 +1723,5 @@ if __name__ == "__main__":
 
     # Start the observer and the main bot function
     observer.start()
+
     main()
