@@ -20,7 +20,26 @@ bash install.sh <omd_site_name> <api_token> <bot_password>
 
 2. Create a rule that exports the notifications using our new Notification Plugin.
 <img src="src/Screenshot_04.png" alt="Telegram Bot" height="auto" width="700" />
-For your information, you can use the first parameter to determine whether a notification should be sent loud (notifications_loud) or silent (notifications_silent). Silent notifications pop up in the chat, but the device does not vibrate or make a notification sound. This method can be used, for example, to differentiate between important and unimportant notifications.
+For your information, you can use the first parameter to determine whether a notification should be sent loud (notifications_loud) or silent (notifications_silent). Silent notifications pop up in the chat, but the device does not vibrate or make a notification sound. This method can be used, for example, to differentiate between important and unimportant notifications.<br><br>
+
+**To update the bot, simply download the install.sh file again as mentioned above and run it with the 3 required arguments**
+
+# Uninstall the Bot
+1. Stop the bot
+```bash
+omd_site_name=<omd_site_name>
+systemctl stop checkmk-telegram-plus-$omd_site_name
+rm /etc/systemd/system/checkmk-telegram-plus-$omd_site_name
+systemctl daemon-reload
+```
+
+2. Delete all notification rules you have created regarding this bot (as described in step 2 of the installation).
+
+3. Clean and remove all data concerning the bot
+```bash
+/omd/sites/$omd_site_name/local/share/check_mk/notifications/telegram_plus_notify_listener
+rm -Rf /omd/sites/$omd_site_name/local/share/checkmk-telegram-plus
+```
 
 # Usage
 ### Authenticate
