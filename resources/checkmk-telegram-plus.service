@@ -5,7 +5,7 @@ Description=CheckMK Telegram Plus Service
 # Wait for the OMD Page to fully start
 ExecStartPre=/bin/sleep 60
 # The service must be started as follows, as required environment variables are not set if the service is only executed in the name of this user.
-ExecStart=/usr/sbin/runuser -l <omd_site> -c 'cd <telegram_plus_dir> && /omd/sites/<omd_site>/bin/python3 <telegram_plus_dir>/telegram_bot.py'
+ExecStart=<runuser_path> -l <omd_site> -c 'cd <telegram_plus_dir> && /omd/sites/<omd_site>/bin/python3 <telegram_plus_dir>/telegram_bot.py'
 Restart=always
 
 [Install]
