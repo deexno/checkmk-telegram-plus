@@ -1454,7 +1454,6 @@ def main() -> None:
     bot_handler.add_handler(CommandHandler("start", start))
     bot_handler.add_handler(CommandHandler("menu", start))
     bot_handler.add_handler(CommandHandler("help", help_command))
-    bot_handler.add_handler(CommandHandler("cancel", cancel))
 
     # Add conversation handlers for various commands
     # "⭕ GET HOST STATUS" command
@@ -1466,10 +1465,18 @@ def main() -> None:
                 )
             ],
             states={
-                HOSTGROUP: [MessageHandler(filters.TEXT, get_host_name)],
-                HOSTNAME: [MessageHandler(filters.TEXT, print_host_status)],
+                HOSTGROUP: [
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND), get_host_name
+                    )
+                ],
+                HOSTNAME: [
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND), print_host_status
+                    )
+                ],
             },
-            fallbacks=[],
+            fallbacks=[CommandHandler("cancel", cancel)],
         )
     )
 
@@ -1482,10 +1489,18 @@ def main() -> None:
                 )
             ],
             states={
-                HOSTGROUP: [MessageHandler(filters.TEXT, get_host_name)],
-                HOSTNAME: [MessageHandler(filters.TEXT, get_services)],
+                HOSTGROUP: [
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND), get_host_name
+                    )
+                ],
+                HOSTNAME: [
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND), get_services
+                    )
+                ],
             },
-            fallbacks=[],
+            fallbacks=[CommandHandler("cancel", cancel)],
         )
     )
 
@@ -1498,11 +1513,24 @@ def main() -> None:
                 )
             ],
             states={
-                HOSTGROUP: [MessageHandler(filters.TEXT, get_host_name)],
-                HOSTNAME: [MessageHandler(filters.TEXT, get_service_name)],
-                SERVICE: [MessageHandler(filters.TEXT, print_service_details)],
+                HOSTGROUP: [
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND), get_host_name
+                    )
+                ],
+                HOSTNAME: [
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND), get_service_name
+                    )
+                ],
+                SERVICE: [
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND),
+                        print_service_details,
+                    )
+                ],
             },
-            fallbacks=[],
+            fallbacks=[CommandHandler("cancel", cancel)],
         )
     )
 
@@ -1516,9 +1544,13 @@ def main() -> None:
                 )
             ],
             states={
-                HOSTGROUP: [MessageHandler(filters.TEXT, get_host_problems)]
+                HOSTGROUP: [
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND), get_host_problems
+                    )
+                ]
             },
-            fallbacks=[],
+            fallbacks=[CommandHandler("cancel", cancel)],
         )
     )
 
@@ -1532,9 +1564,13 @@ def main() -> None:
                 )
             ],
             states={
-                HOSTGROUP: [MessageHandler(filters.TEXT, get_service_problems)]
+                HOSTGROUP: [
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND), get_service_problems
+                    )
+                ]
             },
-            fallbacks=[],
+            fallbacks=[CommandHandler("cancel", cancel)],
         )
     )
 
@@ -1542,8 +1578,14 @@ def main() -> None:
     bot_handler.add_handler(
         ConversationHandler(
             entry_points=[CommandHandler("authenticate", get_pw_for_auth)],
-            states={PW: [MessageHandler(filters.TEXT, try_to_authenticate)]},
-            fallbacks=[],
+            states={
+                PW: [
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND), try_to_authenticate
+                    )
+                ]
+            },
+            fallbacks=[CommandHandler("cancel", cancel)],
         )
     )
 
@@ -1558,10 +1600,13 @@ def main() -> None:
             ],
             states={
                 NOTIFICATION_SETTING: [
-                    MessageHandler(filters.TEXT, change_notifications_setting)
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND),
+                        change_notifications_setting,
+                    )
                 ]
             },
-            fallbacks=[],
+            fallbacks=[CommandHandler("cancel", cancel)],
         )
     )
 
@@ -1574,11 +1619,23 @@ def main() -> None:
                 )
             ],
             states={
-                HOSTGROUP: [MessageHandler(filters.TEXT, get_host_name)],
-                HOSTNAME: [MessageHandler(filters.TEXT, get_service_name)],
-                SERVICE: [MessageHandler(filters.TEXT, print_service_graphs)],
+                HOSTGROUP: [
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND), get_host_name
+                    )
+                ],
+                HOSTNAME: [
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND), get_service_name
+                    )
+                ],
+                SERVICE: [
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND), print_service_graphs
+                    )
+                ],
             },
-            fallbacks=[],
+            fallbacks=[CommandHandler("cancel", cancel)],
         )
     )
 
@@ -1591,10 +1648,18 @@ def main() -> None:
                 )
             ],
             states={
-                HOSTGROUP: [MessageHandler(filters.TEXT, get_host_name)],
-                HOSTNAME: [MessageHandler(filters.TEXT, reschedule_check)],
+                HOSTGROUP: [
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND), get_host_name
+                    )
+                ],
+                HOSTNAME: [
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND), reschedule_check
+                    )
+                ],
             },
-            fallbacks=[],
+            fallbacks=[CommandHandler("cancel", cancel)],
         )
     )
 
@@ -1607,7 +1672,7 @@ def main() -> None:
                 )
             ],
             states={},
-            fallbacks=[],
+            fallbacks=[CommandHandler("cancel", cancel)],
         )
     )
 
@@ -1618,7 +1683,7 @@ def main() -> None:
                 MessageHandler(filters.Regex("^(📖 GET LOGS)$"), get_logs)
             ],
             states={},
-            fallbacks=[],
+            fallbacks=[CommandHandler("cancel", cancel)],
         )
     )
 
@@ -1631,7 +1696,7 @@ def main() -> None:
                 )
             ],
             states={},
-            fallbacks=[],
+            fallbacks=[CommandHandler("cancel", cancel)],
         )
     )
 
@@ -1641,8 +1706,14 @@ def main() -> None:
             entry_points=[
                 MessageHandler(filters.Regex("^(🔒 CHANGE PASSWORD)$"), get_pw)
             ],
-            states={PW: [MessageHandler(filters.TEXT, change_password)]},
-            fallbacks=[],
+            states={
+                PW: [
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND), change_password
+                    )
+                ]
+            },
+            fallbacks=[CommandHandler("cancel", cancel)],
         )
     )
 
@@ -1653,7 +1724,7 @@ def main() -> None:
                 MessageHandler(filters.Regex("^(👥 LIST USERS)$"), list_users)
             ],
             states={},
-            fallbacks=[],
+            fallbacks=[CommandHandler("cancel", cancel)],
         )
     )
 
@@ -1663,8 +1734,14 @@ def main() -> None:
             entry_points=[
                 MessageHandler(filters.Regex("^(🗑️ DELETE USERS)$"), get_user)
             ],
-            states={OPTION: [MessageHandler(filters.TEXT, delete_user)]},
-            fallbacks=[],
+            states={
+                OPTION: [
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND), delete_user
+                    )
+                ]
+            },
+            fallbacks=[CommandHandler("cancel", cancel)],
         )
     )
 
@@ -1678,7 +1755,7 @@ def main() -> None:
                 )
             ],
             states={},
-            fallbacks=[],
+            fallbacks=[CommandHandler("cancel", cancel)],
         )
     )
 
@@ -1691,7 +1768,7 @@ def main() -> None:
                 )
             ],
             states={},
-            fallbacks=[],
+            fallbacks=[CommandHandler("cancel", cancel)],
         )
     )
 
