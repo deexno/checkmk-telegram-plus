@@ -19,9 +19,7 @@ bot_password=$3
 telegram_plus_dir=/omd/sites/$omd_site/local/share/checkmk-telegram-plus
 telegram_plus_service_name=checkmk-telegram-plus-$omd_site.service
 
-runuser_path=$(which runuser)
-
-programs=(git runuser pip3 sed)
+programs=(git runuser pip3 sed which)
 
 for program in "${programs[@]}"; do
     if ! command -v "$program" > /dev/null 2>&1; then
@@ -29,6 +27,8 @@ for program in "${programs[@]}"; do
         exit
     fi
 done
+
+runuser_path=$(which runuser)
 
 mkdir $telegram_plus_dir
 
