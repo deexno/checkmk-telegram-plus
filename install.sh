@@ -19,6 +19,8 @@ bot_password=$3
 telegram_plus_dir=/omd/sites/$omd_site/local/share/checkmk-telegram-plus
 telegram_plus_service_name=checkmk-telegram-plus-$omd_site.service
 
+runuser_path=$(which runuser)
+
 programs=(git runuser pip3 sed)
 
 for program in "${programs[@]}"; do
@@ -43,6 +45,7 @@ sed -i "s|<omd_site>|$omd_site|g" resources/*
 sed -i "s|<api_token>|$api_token|g" resources/*
 sed -i "s|<password_for_authentication>|$bot_password|g" resources/*
 sed -i "s|<telegram_plus_dir>|$telegram_plus_dir|g" resources/*
+sed -i "s|<runuser_path>|$runuser_path|g" resources/*
 
 # Add a default version to the bot config if it does not exist in order  to be compatible with the downstream versions
 bot_version=$(curl --silent "https://api.github.com/repos/deexno/checkmk-telegram-plus/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
