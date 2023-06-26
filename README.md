@@ -37,7 +37,7 @@ systemctl daemon-reload
 
 3. Clean and remove all data concerning the bot
 ```bash
-/omd/sites/$omd_site_name/local/share/check_mk/notifications/telegram_plus_notify_listener
+rm -Rf /omd/sites/$omd_site_name/local/share/check_mk/notifications/telegram_plus_notify_listener
 rm -Rf /omd/sites/$omd_site_name/local/share/checkmk-telegram-plus
 ```
 
