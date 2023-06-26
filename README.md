@@ -29,7 +29,7 @@ For your information, you can use the first parameter to determine whether a not
 ```bash
 omd_site_name=<omd_site_name>
 systemctl stop checkmk-telegram-plus-$omd_site_name
-rm /etc/systemd/system/checkmk-telegram-plus-$omd_site_name
+rm /etc/systemd/system/checkmk-telegram-plus-$omd_site_name.service
 systemctl daemon-reload
 ```
 
