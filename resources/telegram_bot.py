@@ -27,6 +27,7 @@ from telegram.ext import (
     MessageHandler,
     filters,
 )
+from translate import Translator
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
@@ -124,6 +125,60 @@ bot_handler = (
 # Get job queue of bot
 bot_handler_job_queue = bot_handler.job_queue
 
+languages = [
+    KeyboardButton(text="Deutsch: 🇩🇪 de"),
+    KeyboardButton(text="Italiano: 🇮🇹 it"),
+    KeyboardButton(text="English: 🇬🇧 en"),
+    KeyboardButton(text="Русский: 🇷🇺 ru"),
+    KeyboardButton(text="Español: 🇪🇸 es"),
+    KeyboardButton(text="Français: 🇫🇷 fr"),
+    KeyboardButton(text="中文: 🇨🇳 zh"),
+    KeyboardButton(text="日本語: 🇯🇵 ja"),
+    KeyboardButton(text="Português: 🇵🇹 pt"),
+    KeyboardButton(text="العربية: 🇸🇦 ar"),
+    KeyboardButton(text="Nederlands: 🇳🇱 nl"),
+    KeyboardButton(text="Türkçe: 🇹🇷 tr"),
+    KeyboardButton(text="Svenska: 🇸🇪 sv"),
+    KeyboardButton(text="Polski: 🇵🇱 pl"),
+    KeyboardButton(text="한국어: 🇰🇷 ko"),
+    KeyboardButton(text="Dansk: 🇩🇰 da"),
+    KeyboardButton(text="Suomi: 🇫🇮 fi"),
+    KeyboardButton(text="Norsk: 🇳🇴 no"),
+    KeyboardButton(text="Čeština: 🇨🇿 cs"),
+    KeyboardButton(text="हिन्दी: 🇮🇳 hi"),
+    KeyboardButton(text="Ελληνικά: 🇬🇷 el"),
+    KeyboardButton(text="עברית: 🇮🇱 he"),
+    KeyboardButton(text="Magyar: 🇭🇺 hu"),
+    KeyboardButton(text="Indonesia: 🇮🇩 id"),
+    KeyboardButton(text="Slovenský: 🇸🇰 sk"),
+    KeyboardButton(text="ไทย: 🇹🇭 th"),
+    KeyboardButton(text="Tiếng Việt: 🇻🇳 vi"),
+    KeyboardButton(text="Română: 🇷🇴 ro"),
+    KeyboardButton(text="Català: 🇪🇸 ca"),
+    KeyboardButton(text="Hrvatski: 🇭🇷 hr"),
+    KeyboardButton(text="Українська: 🇺🇦 uk"),
+    KeyboardButton(text="Slovenščina: 🇸🇮 sl"),
+    KeyboardButton(text="Bahasa Melayu: 🇲🇾 ms"),
+    KeyboardButton(text="Български: 🇧🇬 bg"),
+    KeyboardButton(text="Eesti: 🇪🇪 et"),
+    KeyboardButton(text="Lietuvių: 🇱🇹 lt"),
+    KeyboardButton(text="Latviešu: 🇱🇻 lv"),
+    KeyboardButton(text="فارسی: 🇮🇷 fa"),
+    KeyboardButton(text="Filipino: 🇵🇭 tl"),
+    KeyboardButton(text="Srpksi: 🇷🇸 sr"),
+    KeyboardButton(text="മലയാളം: 🇮🇳 ml"),
+    KeyboardButton(text="ਪੰਜਾਬੀ: 🇮🇳 pa"),
+    KeyboardButton(text="தமிழ்: 🇮🇳 ta"),
+    KeyboardButton(text="বাংলা: 🇧🇩 bn"),
+    KeyboardButton(text="తెలుగు: 🇮🇳 te"),
+    KeyboardButton(text="ಕನ್ನಡ: 🇮🇳 kn"),
+    KeyboardButton(text="ગુજરાતી: 🇮🇳 gu"),
+    KeyboardButton(text="ଓଡ଼ିଆ: 🇮🇳 or"),
+    KeyboardButton(text="සිංහල: 🇱🇰 si"),
+    KeyboardButton(text="ဗမာ: 🇲🇲 my"),
+    KeyboardButton(text="ភាសាខ្មែរ: 🇰🇭 km"),
+]
+
 
 class NotifyHandler(FileSystemEventHandler):
     # Method to be called when a file is created
@@ -191,6 +246,24 @@ def update_config(key, value):
         config.write(configfile)
 
 
+# Method to shorten the code and make translation easier
+def translate(text):
+    config.read("config.ini")
+
+    # If the language is not present (e.g. due to an upgrade from an old
+    # version to a new one), create it
+    if not config.has_option("telegram_bot", "language"):
+        update_config("language", "en")
+
+    output_language = config["telegram_bot"]["language"]
+    translator = Translator(to_lang=output_language)
+
+    if not output_language == "en":
+        return translator.translate(text)
+    else:
+        return text
+
+
 # Method to initially start the conversation with the bot
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # Get the userdetails
@@ -200,19 +273,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if is_user_authenticated(user.id):
         # Send message to the user with the home menu
         await update.message.reply_text(
-            f"Hi! {user.username} 👋. I have added a menu to your keyboard ⌨️,"
-            "which you can use to interact with me. If you don't see it, type "
-            "/menu. If you need help just try /help",
+            translate(
+                f"Hi! {user.username} 👋. I have added a menu to your "
+                "keyboard ⌨️, which you can use to interact with me. If "
+                "you don't see it, type /menu. If you need help just try /help"
+            ),
             reply_markup=home_menu,
         )
         log_authenticated_access(user.username, update.message.text)
     else:
         # Send error message to the user if not authenticated
         await update.message.reply_text(
-            "You are not authenticated! 🔐 When using the bot for the first "
-            "time, you must authenticate yourself with a password. If you do "
-            "not do this, the bot 🤖 will not respond to any of your "
-            "further requests."
+            translate(
+                "You are not authenticated! 🔐 When using the bot for the "
+                "first time, you must authenticate yourself with a password. "
+                "If you do not do this, the bot 🤖 will not respond to any of "
+                "your further requests."
+            )
         )
         log_unauthenticated_access(user.username, "/start")
 
@@ -255,20 +332,22 @@ async def get_host_name(
             hosts.append(KeyboardButton(text=str(host[0])))
 
         await update.message.reply_text(
-            "PLEASE TELL ME THE HOSTNAME",
+            translate("PLEASE TELL ME THE HOSTNAME"),
             reply_markup=ReplyKeyboardMarkup.from_column(
                 hosts,
                 resize_keyboard=False,
                 one_time_keyboard=True,
-                input_field_placeholder="SELECT A HOST IN THE MENU",
+                input_field_placeholder=translate("SELECT A HOST IN THE MENU"),
             ),
         )
 
     except Exception as e:
         logger.critical(e)
         await update.message.reply_text(
-            "I'm sorry but while I was processing your request an "
-            "error occurred!",
+            translate(
+                "I'm sorry but while I was processing your request an "
+                "error occurred!"
+            ),
             reply_markup=home_menu,
         )
 
@@ -299,12 +378,14 @@ async def get_host_group(
             # a ReplyKeyboardMarkup and prompt the user to select one
             # of these
             await update.message.reply_text(
-                "PLEASE TELL ME THE HOSTGROUP OF THE HOST",
+                translate("PLEASE TELL ME THE HOSTGROUP OF THE HOST"),
                 reply_markup=ReplyKeyboardMarkup.from_column(
                     hostgroups,
                     resize_keyboard=False,
                     one_time_keyboard=True,
-                    input_field_placeholder="SELECT A HOSTGROUP IN THE MENU",
+                    input_field_placeholder=translate(
+                        "SELECT A HOSTGROUP IN THE MENU"
+                    ),
                 ),
             )
             log_authenticated_access(
@@ -315,8 +396,10 @@ async def get_host_group(
         except Exception as e:
             logger.critical(e)
             await update.message.reply_text(
-                "I'm sorry but while I was processing your request an "
-                "error occurred!"
+                translate(
+                    "I'm sorry but while I was processing your request an "
+                    "error occurred!"
+                )
             )
 
         return HOSTGROUP
@@ -350,12 +433,14 @@ async def get_service_name(
         # a ReplyKeyboardMarkup and prompt the user to select one
         # of these
         await update.message.reply_text(
-            "PLEASE TELL ME THE SERVICE NAME",
+            translate("PLEASE TELL ME THE SERVICE NAME"),
             reply_markup=ReplyKeyboardMarkup.from_column(
                 services,
                 resize_keyboard=False,
                 one_time_keyboard=True,
-                input_field_placeholder="SELECT A SERVICE IN THE MENU",
+                input_field_placeholder=translate(
+                    "SELECT A SERVICE IN THE MENU"
+                ),
             ),
         )
 
@@ -363,8 +448,10 @@ async def get_service_name(
     except Exception as e:
         logger.critical(e)
         await update.message.reply_text(
-            "I'm sorry but while I was processing your request an "
-            "error occurred!",
+            translate(
+                "I'm sorry but while I was processing your request an "
+                "error occurred!"
+            ),
             reply_markup=home_menu,
         )
 
@@ -389,7 +476,7 @@ async def print_host_status(
         # Reply to the user with the current status of the host
         state = get_host_status(update.message.text)
         await update.message.reply_html(
-            state,
+            translate(state),
             reply_markup=home_menu,
         )
 
@@ -434,8 +521,10 @@ async def get_services(
     except Exception as e:
         logger.critical(e)
         await update.message.reply_text(
-            "I'm sorry but while I was processing your request an "
-            "error occurred!",
+            translate(
+                "I'm sorry but while I was processing your request an "
+                "error occurred!"
+            ),
             reply_markup=home_menu,
         )
 
@@ -466,11 +555,11 @@ def get_service_details(hostname, servicename):
     details = (
         f"{state_emoji} <u><b>{hostname} / {servicename} - "
         f"{state_text}</b></u>\n\n"
-        f"<b>SUMMARY: </b>\n"
+        f"<b>{translate('SUMMARY')}: </b>\n"
         f"<code><pre>{html.escape(service[0][3])}</pre></code>\n\n"
-        f"<b>DETAILS: </b>\n"
+        f"<b>{translate('DETAILS')}: </b>\n"
         f"<code><pre>{html.escape(service[0][4])}</pre></code>\n\n"
-        "<b>METRICS: </b>\n"
+        f"<b>{translate('METRICS')}: </b>\n"
     )
 
     # Add any available metrics to the details string
@@ -481,12 +570,12 @@ def get_service_details(hostname, servicename):
                 value, warn, crit, min, max = values.split(";")
                 details += f"{name}: {value}\n"
     else:
-        details += "No metrics available\n"
+        details += translate("No metrics available\n")
 
     # Add last check time to the details string
     details += (
-        "\n<b>INFO: </b>\n"
-        f"Last Check: {datetime.fromtimestamp(service[0][5])}"
+        f"\n<b>{translate('INFO')}: </b>\n"
+        f"{translate('Last Check')}: {datetime.fromtimestamp(service[0][5])}"
     )
 
     return details
@@ -510,8 +599,10 @@ async def print_service_details(
         # If an error occurs, print the error and reply with an error message
         logger.critical(e)
         await update.message.reply_text(
-            "I'm sorry but while I was processing your request an "
-            "error occurred!",
+            translate(
+                "I'm sorry but while I was processing your request an "
+                "error occurred!"
+            ),
             reply_markup=home_menu,
         )
 
@@ -562,8 +653,10 @@ async def print_service_graphs(
     try:
         # Reply to the user that we are processing their request
         await update.message.reply_html(
-            f"<u><b>📉 {service} GRAPH(s) FROM {hostname}</b></u>:\n"
-            "This may take a second.",
+            translate(
+                f"<u><b>📉 {service} GRAPHS FROM {hostname}</b></u>:\n"
+                "This may take a second."
+            ),
             reply_markup=home_menu,
         )
 
@@ -576,7 +669,7 @@ async def print_service_graphs(
                 await update.message.reply_media_group(media=chunk)
         else:
             await update.message.reply_text(
-                "No graphs are available",
+                translate("No graphs are available"),
                 reply_markup=home_menu,
             )
 
@@ -584,8 +677,10 @@ async def print_service_graphs(
         # If an error occurs, print the error and reply with an error message
         logger.critical(e)
         await update.message.reply_text(
-            "I'm sorry but while I was processing your request an "
-            "error occurred!",
+            translate(
+                "I'm sorry but while I was processing your request an "
+                "error occurred!"
+            ),
             reply_markup=home_menu,
         )
 
@@ -602,7 +697,7 @@ async def reschedule_check(
     try:
         # Reply to the user that we are processing their request
         await update.message.reply_html(
-            "The check will be started. Please wait. ⏳",
+            translate("The check will be started. Please wait. ⏳"),
             reply_markup=home_menu,
         )
 
@@ -616,7 +711,7 @@ async def reschedule_check(
         # Return the answer of the check to the user
         await update.message.reply_html(
             f"{check_result.stdout.decode('utf-8')}\n\n"
-            "RESCHEDULE CHECK WAS COMPLETED SUCCESSFULLY",
+            f"{translate('RESCHEDULE CHECK WAS COMPLETED SUCCESSFULLY')}",
             reply_markup=home_menu,
         )
 
@@ -624,8 +719,10 @@ async def reschedule_check(
         # If an error occurs, print the error and reply with an error message
         logger.critical(e)
         await update.message.reply_text(
-            "I'm sorry but while I was processing your request an "
-            "error occurred!",
+            translate(
+                "I'm sorry but while I was processing your request an "
+                "error occurred!"
+            ),
             reply_markup=home_menu,
         )
 
@@ -657,7 +754,8 @@ async def get_host_problems(
         # Create a string to store the host problems and their states.
         # This string is formatted as HTML for rendering purposes.
         host_problems = (
-            f"<u><b>HOST PROBLEMS ({len(host_problems_array)}):</b></u>\n\n"
+            f"<u><b>{translate('HOST PROBLEMS')} "
+            f"({len(host_problems_array)}):</b></u>\n\n"
         )
 
         # Loop through the list of hosts and their states, and append each one
@@ -678,8 +776,10 @@ async def get_host_problems(
         # the exception and send an error message to the user.
         logger.critical(e)
         await update.message.reply_text(
-            "I'm sorry but while I was processing your request an "
-            "error occurred!",
+            translate(
+                "I'm sorry but while I was processing your request an "
+                "error occurred!"
+            ),
             reply_markup=home_menu,
         )
 
@@ -709,7 +809,7 @@ async def get_service_problems(
         )
 
         service_problems = (
-            "<u><b>SERVICE PROBLEMS "
+            f"<u><b>{translate('SERVICE PROBLEMS')} "
             f"({len(service_problems_array)}):</b></u>\n\n"
         )
 
@@ -729,8 +829,10 @@ async def get_service_problems(
         logger.critical(e)
         # Send an error message with the home menu as the reply markup
         await update.message.reply_text(
-            "I'm sorry but while I was processing your request an "
-            "error occurred!",
+            translate(
+                "I'm sorry but while I was processing your request an "
+                "error occurred!"
+            ),
             reply_markup=home_menu,
         )
 
@@ -744,12 +846,15 @@ async def get_pw_for_auth(
     # Check if the user is not already authenticated
     if not is_user_authenticated(update.effective_user.id):
         # If the user is not authenticated ask for the password
-        await update.message.reply_text("What is the password?")
+        await update.message.reply_text(translate("What is the password?"))
         return PW
     else:
         # If user is already authenticated, end the conversation
         await update.message.reply_text(
-            "You are already authenticated. ✅ The process has been cancelled."
+            translate(
+                "You are already authenticated. "
+                "✅ The process has been cancelled."
+            )
         )
         return ConversationHandler.END
 
@@ -774,9 +879,12 @@ async def try_to_authenticate(
 
         # Let the user know they have successfully authenticated
         await update.message.reply_text(
-            "Success! ✅ You can now communicate with me! I have added a menu "
-            "to your keyboard, which you can use to interact with me. If you "
-            "don't see it, type /menu. If you need help just try /help",
+            translate(
+                "Success! ✅ You can now communicate with me! I have added a "
+                "menu to your keyboard, which you can use to interact with "
+                "me. If you don't see it, type /menu. If you need help just "
+                "try /help"
+            ),
             reply_markup=home_menu,
         )
         log_authenticated_access(
@@ -785,8 +893,10 @@ async def try_to_authenticate(
     else:
         # Let the user know they have failed authentication
         await update.message.reply_text(
-            "WRONG PASSWORD! 🛑 YOUR FAILED LOGIN ATTEMPT WILL BE LOGGED 📃 "
-            "AND COMMUNICATED TO THE OTHER USERS!"
+            translate(
+                "WRONG PASSWORD! 🛑 YOUR FAILED LOGIN ATTEMPT WILL "
+                "BE LOGGED 📃 AND COMMUNICATED TO THE OTHER USERS!"
+            )
         )
         logger.critical(
             f"{user.username} tried to authenticate. The password was wrong."
@@ -820,7 +930,7 @@ async def get_notification_settings(
         # Display the current notification settings to the user and provide
         # options to change the settings
         await update.message.reply_text(
-            "WHAT WOULD YOU LIKE TO CHANGE?",
+            translate("WHAT WOULD YOU LIKE TO CHANGE?"),
             reply_markup=ReplyKeyboardMarkup.from_column(
                 [
                     KeyboardButton(
@@ -834,7 +944,7 @@ async def get_notification_settings(
                 ],
                 resize_keyboard=False,
                 one_time_keyboard=True,
-                input_field_placeholder="Choose an option",
+                input_field_placeholder=translate("Choose an option"),
             ),
         )
 
@@ -876,13 +986,17 @@ async def change_notifications_setting(
         update_config(setting, current_setting)
 
         # Notify the user that their setting has been changed
-        await update.message.reply_text("✅ DONE", reply_markup=home_menu)
+        await update.message.reply_text(
+            translate("✅ DONE"), reply_markup=home_menu
+        )
     except Exception as e:
         # If an error occurs, notify the user
         logger.critical(e)
         await update.message.reply_text(
-            "I'm sorry but while I was processing your request an "
-            "error occurred!",
+            translate(
+                "I'm sorry but while I was processing your request an "
+                "error occurred!"
+            ),
             reply_markup=home_menu,
         )
     # End the conversation handler
@@ -892,7 +1006,7 @@ async def change_notifications_setting(
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if is_user_authenticated(update.effective_user.id):
         await update.message.reply_text(
-            "Conversation cancelled ❌",
+            translate("Conversation cancelled ❌"),
             reply_markup=home_menu,
         )
         log_authenticated_access(
@@ -929,8 +1043,10 @@ async def recheck(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             # Edit the message with the latest status and a new inline button
             # for rechecking
             await query.edit_message_text(
-                text=f"(🔂 RECHECK {recheck_id} - {current_datetime})\n\n"
-                f"{message}",
+                text=translate(
+                    f"(🔂 RECHECK {recheck_id} - {current_datetime})\n\n"
+                    f"{message}"
+                ),
                 reply_markup=InlineKeyboardMarkup(
                     [
                         [
@@ -960,8 +1076,10 @@ async def recheck(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             # the home menu button
             logger.critical(e)
             await query.edit_message_text(
-                "I'm sorry but while I was processing your request an "
-                "error occurred!",
+                translate(
+                    "I'm sorry but while I was processing your request an "
+                    "error occurred!"
+                ),
                 reply_markup=home_menu,
             )
     else:
@@ -981,9 +1099,11 @@ async def post_print_service_graphs(
 
         try:
             await context.bot.send_message(
-                text=f"<u><b>📉 {description} GRAPH(s) FROM "
-                f"{hostname}</b></u>:\n"
-                "This may take a second.",
+                text=translate(
+                    f"<u><b>📉 {description} GRAPH(s) FROM "
+                    f"{hostname}</b></u>:\n"
+                    "This may take a second."
+                ),
                 chat_id=update.effective_user.id,
                 disable_notification=True,
                 parse_mode="HTML",
@@ -1000,7 +1120,7 @@ async def post_print_service_graphs(
                     )
             else:
                 await context.bot.send_message(
-                    text="No graphs are available",
+                    text=translate("No graphs are available"),
                     chat_id=update.effective_user.id,
                     reply_markup=home_menu,
                 )
@@ -1008,8 +1128,10 @@ async def post_print_service_graphs(
             # If an error occurs, notify the user
             logger.critical(e)
             await context.bot.send_message(
-                text="I'm sorry but while I was processing your request an "
-                "error occurred!",
+                text=translate(
+                    "I'm sorry but while I was processing your request an "
+                    "error occurred!"
+                ),
                 chat_id=update.effective_user.id,
                 reply_markup=home_menu,
             )
@@ -1047,11 +1169,11 @@ async def send_automatic_notification(context: ContextTypes.DEFAULT_TYPE):
         f"{to_state_emoji} <u><b>{hostname}</b></u>\n\n"
         f"{description}\n"
         f"{from_state_txt} → {to_state_txt}"
-        "\n\n<u><b>OUTPUT:</b></u>\n"
+        f"\n\n<u><b>{translate('OUTPUT')}:</b></u>\n"
         f"<code><pre>{html.escape(output)}</pre></code>"
-        "\n\n<u><b>DETAILS:</b></u>\n"
+        f"\n\n<u><b>{translate('DETAILS')}:</b></u>\n"
         f"IP: {ip}\n"
-        f"HOSTGROUP: {hostgroup}\n"
+        f"{translate('HOSTGROUP')}: {hostgroup}\n"
     )
 
     # Send the message to all the recipients in the recipient list
@@ -1097,7 +1219,7 @@ async def open_admin_settings(
 
             # Notify the user that their setting has been changed
             await update.message.reply_text(
-                "ADMINISTATOR SETTINGS WERE OPENED",
+                translate("ADMINISTATOR SETTINGS WERE OPENED"),
                 reply_markup=ReplyKeyboardMarkup(
                     [
                         [
@@ -1115,6 +1237,11 @@ async def open_admin_settings(
                             KeyboardButton(text="⬆️ CHECK FOR UPDATES"),
                             KeyboardButton(text="🔔 LIST NOTIFY QUEUE"),
                         ],
+                        [
+                            KeyboardButton(text="✴ GET OMD STATUS"),
+                            KeyboardButton(text="⬆ START OMD SERVICES"),
+                        ],
+                        [KeyboardButton(text="🇩🇪 CHANGE LANGUAGE")],
                     ],
                     resize_keyboard=False,
                     one_time_keyboard=True,
@@ -1129,8 +1256,10 @@ async def open_admin_settings(
         # If an error occurs, notify the user
         logger.critical(e)
         await update.message.reply_text(
-            "I'm sorry but while I was processing your request an "
-            "error occurred!",
+            translate(
+                "I'm sorry but while I was processing your request an "
+                "error occurred!"
+            ),
             reply_markup=home_menu,
         )
     # End the conversation handler
@@ -1147,13 +1276,15 @@ async def get_logs(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             logs = html.escape(log_file.read())
             log_file.close()
 
-            events = "<u><b>HERE ARE THE LAST 25 LOG ENTRIES:</b></u>:\n\n"
+            events = translate(
+                "<u><b>HERE ARE THE LAST 25 LOG ENTRIES:</b></u>:\n\n"
+            )
 
             for event in logs.split("\n")[:25]:
-                event = event.replace("CRITICAL:", "🛑 CRITICAL\n")
-                event = event.replace("WARNING:", "⚠ WARNING\n")
+                event = event.replace("CRITICAL:", translate("🛑 CRITICAL\n"))
+                event = event.replace("WARNING:", translate("⚠ WARNING\n"))
 
-                events += f"<code>{event}</code>\n\n"
+                events += f"<code>{translate(event)}</code>\n\n"
 
             await update.message.reply_html(
                 events,
@@ -1170,8 +1301,10 @@ async def get_logs(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     except Exception as e:
         logger.critical(e)
         await update.message.reply_text(
-            "I'm sorry but while I was processing your request an "
-            "error occurred!",
+            translate(
+                "I'm sorry but while I was processing your request an "
+                "error occurred!"
+            ),
             reply_markup=home_menu,
         )
 
@@ -1198,8 +1331,10 @@ async def display_password(
     except Exception as e:
         logger.critical(e)
         await update.message.reply_text(
-            "I'm sorry but while I was processing your request an "
-            "error occurred!",
+            translate(
+                "I'm sorry but while I was processing your request an "
+                "error occurred!"
+            ),
             reply_markup=home_menu,
         )
 
@@ -1208,7 +1343,7 @@ async def display_password(
 
 async def get_pw(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if is_user_authenticated(update.effective_user.id):
-        await update.message.reply_text("What is the password?")
+        await update.message.reply_text(translate("What is the password?"))
         log_authenticated_access(
             update.effective_user.username, update.message.text
         )
@@ -1228,14 +1363,16 @@ async def change_password(
         update_config("password_for_authentication", update.message.text)
 
         await update.message.reply_text(
-            "✅ DONE",
+            translate("✅ DONE"),
             reply_markup=home_menu,
         )
     except Exception as e:
         logger.critical(e)
         await update.message.reply_text(
-            "I'm sorry but while I was processing your request an "
-            "error occurred!",
+            translate(
+                "I'm sorry but while I was processing your request an "
+                "error occurred!"
+            ),
             reply_markup=home_menu,
         )
 
@@ -1252,11 +1389,13 @@ async def list_users(
             users_notify_s = config["telegram_bot"]["notifications_silent"]
 
             await update.message.reply_html(
-                "<u><b>ALLOWED USERS</b></u>:\n"
+                f"<u><b>{translate('ALLOWED USERS')}</b></u>:\n"
                 f"{allowed_users}"
-                "\n\n<u><b>USERS WITH ACTIVE NOTIFICATIONS (LOUD)</b></u>:\n"
+                f"\n\n<u><b>{translate('USERS WITH ACTIVE NOTIFICATIONS')} "
+                "(LOUD)</b></u>:\n"
                 f"{users_notify_l}"
-                "\n\n<u><b>USERS WITH ACTIVE NOTIFICATIONS (SILENT)</b></u>:\n"
+                f"\n\n<u><b>{translate('USERS WITH ACTIVE NOTIFICATIONS')} "
+                "(SILENT)</b></u>:\n"
                 f"{users_notify_s}",
                 reply_markup=home_menu,
             )
@@ -1272,8 +1411,10 @@ async def list_users(
     except Exception as e:
         logger.critical(e)
         await update.message.reply_text(
-            "I'm sorry but while I was processing your request an "
-            "error occurred!",
+            translate(
+                "I'm sorry but while I was processing your request an "
+                "error occurred!"
+            ),
             reply_markup=home_menu,
         )
 
@@ -1290,12 +1431,14 @@ async def get_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
                     users.append(KeyboardButton(text=str(user)))
 
             await update.message.reply_text(
-                "Select a user!",
+                translate("Select a user!"),
                 reply_markup=ReplyKeyboardMarkup.from_column(
                     users,
                     resize_keyboard=False,
                     one_time_keyboard=True,
-                    input_field_placeholder="SELECT A HOSTGROUP IN THE MENU",
+                    input_field_placeholder=translate(
+                        "SELECT A USER IN THE MENU"
+                    ),
                 ),
             )
             log_authenticated_access(
@@ -1311,8 +1454,10 @@ async def get_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     except Exception as e:
         logger.critical(e)
         await update.message.reply_text(
-            "I'm sorry but while I was processing your request an "
-            "error occurred!",
+            translate(
+                "I'm sorry but while I was processing your request an "
+                "error occurred!"
+            ),
             reply_markup=home_menu,
         )
 
@@ -1328,14 +1473,16 @@ async def delete_user(
         update_config("allowed_users", allowed_users)
 
         await update.message.reply_text(
-            "✅ DONE",
+            translate("✅ DONE"),
             reply_markup=home_menu,
         )
     except Exception as e:
         logger.critical(e)
         await update.message.reply_text(
-            "I'm sorry but while I was processing your request an "
-            "error occurred!",
+            translate(
+                "I'm sorry but while I was processing your request an "
+                "error occurred!"
+            ),
             reply_markup=home_menu,
         )
 
@@ -1350,7 +1497,9 @@ async def list_notify_queue(
             files = os.listdir(notify_query_path)
 
             await update.message.reply_text(
-                "🚫 EMPTY" if len(files) == 0 else f"({len(files)}) {files}",
+                translate(
+                    "🚫 EMPTY" if len(files) == 0 else f"({len(files)}) {files}"
+                ),
                 reply_markup=home_menu,
             )
             log_authenticated_access(
@@ -1365,8 +1514,10 @@ async def list_notify_queue(
     except Exception as e:
         logger.critical(e)
         await update.message.reply_text(
-            "I'm sorry but while I was processing your request an "
-            "error occurred!",
+            translate(
+                "I'm sorry but while I was processing your request an "
+                "error occurred!"
+            ),
             reply_markup=home_menu,
         )
 
@@ -1383,10 +1534,10 @@ async def check_for_updates(
                 "deexno/checkmk-telegram-plus/releases/latest"
             )
 
-            version_installed = "No"
+            version_installed = translate("No")
 
             if config.has_option("telegram_bot", "version"):
-                version_installed = (
+                version_installed = translate(
                     f"Yes ({config['telegram_bot']['version']})"
                     if version_details.json()["tag_name"]
                     == config["telegram_bot"]["version"]
@@ -1394,22 +1545,169 @@ async def check_for_updates(
                 )
 
             await update.message.reply_html(
-                "<u><b>BOT LATEST VERSION - DETAILS:</b></u>\n\n"
-                f"LATEST VERSION: {version_details.json()['tag_name']}\n"
-                f"VERSION INSTALLED: {version_installed}\n"
-                f"PUPLISHED AT: {version_details.json()['published_at']}\n\n"
-                "<u><b>CHANGES:</b></u>\n"
-                f"{version_details.json()['body']}\n\n"
+                f"<u><b>{translate('BOT LATEST VERSION - DETAILS')}:</b></u>\n"
+                f"{translate('LATEST VERSION')}: "
+                f"{version_details.json()['tag_name']}\n"
+                f"{translate('VERSION INSTALLED')}: "
+                f"{version_installed}\n"
+                f"{translate('PUPLISHED AT')}: "
+                f"{version_details.json()['published_at']}\n\n"
+                f"<u><b>{translate('CHANGES')}:</b></u>\n"
+                f"{translate(version_details.json()['body'])}\n\n"
                 "<a href='https://github.com/deexno/checkmk-telegram-plus'>"
-                "OPEN THE UPDATE/INSTALLATION GUIDE</a>",
+                f"{translate('OPEN THE UPDATE/INSTALLATION GUIDE')}</a>",
                 reply_markup=home_menu,
             )
 
     except Exception as e:
         logger.critical(e)
         await update.message.reply_text(
-            "I'm sorry but while I was processing your request an "
-            "error occurred!",
+            translate(
+                "I'm sorry but while I was processing your request an "
+                "error occurred!"
+            ),
+            reply_markup=home_menu,
+        )
+
+    return ConversationHandler.END
+
+
+async def get_omd_status(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    try:
+        # Execute the check via the OMD CLI
+        check_result = subprocess.run(
+            [f"/omd/sites/{omd_site}/bin/omd", "status"],
+            stdout=subprocess.PIPE,
+        )
+
+        # Return the answer of the check to the user
+        await update.message.reply_html(
+            f"<pre>{check_result.stdout.decode('utf-8')}</pre>",
+            reply_markup=home_menu,
+        )
+
+    except Exception as e:
+        # If an error occurs, print the error and reply with an error message
+        logger.critical(e)
+        await update.message.reply_text(
+            translate(
+                "I'm sorry but while I was processing your request an "
+                "error occurred!"
+            ),
+            reply_markup=home_menu,
+        )
+
+    # End the conversation handler
+    return ConversationHandler.END
+
+
+async def start_omd_services(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    try:
+        await update.message.reply_html(
+            translate(
+                "<u><b>THE SERVICES ARE ATTEMPTED TO START. "
+                "PLEASE WAIT</b></u>"
+            ),
+            reply_markup=home_menu,
+        )
+
+        # Execute the start command via the OMD CLI
+        check_result = subprocess.run(
+            [f"/omd/sites/{omd_site}/bin/omd", "start"],
+            stdout=subprocess.PIPE,
+        )
+
+        # Return the answer of the check to the user
+        await update.message.reply_html(
+            f"<pre>{check_result.stdout.decode('utf-8')}</pre>",
+            reply_markup=home_menu,
+        )
+
+    except Exception as e:
+        # If an error occurs, print the error and reply with an error message
+        logger.critical(e)
+        await update.message.reply_text(
+            translate(
+                "I'm sorry but while I was processing your request an "
+                "error occurred!"
+            ),
+            reply_markup=home_menu,
+        )
+
+    # End the conversation handler
+    return ConversationHandler.END
+
+
+async def get_language(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    try:
+        if is_user_authenticated(update.effective_user.id):
+            await update.message.reply_text(
+                translate(
+                    "Select a language! Attention! If you choose a "
+                    "language other than English, this may result in slower "
+                    "response times! A correct translation is also not "
+                    "guaranteed. The translation is based on google "
+                    "Translate. Only static outputs are translated here. "
+                    "Outputs of Check_MK itself remain in the original "
+                    "format in order not to publish any misleading "
+                    "information!"
+                ),
+                reply_markup=ReplyKeyboardMarkup.from_column(
+                    languages,
+                    resize_keyboard=False,
+                    one_time_keyboard=True,
+                    input_field_placeholder=translate(
+                        "SELECT A LANGUAGE IN THE MENU"
+                    ),
+                ),
+            )
+            log_authenticated_access(
+                update.effective_user.username, update.message.text
+            )
+
+            return OPTION
+        else:
+            log_unauthenticated_access(
+                update.effective_user.username, update.message.text
+            )
+
+    except Exception as e:
+        logger.critical(e)
+        await update.message.reply_text(
+            translate(
+                "I'm sorry but while I was processing your request an "
+                "error occurred!"
+            ),
+            reply_markup=home_menu,
+        )
+
+    return ConversationHandler.END
+
+
+async def update_language(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    try:
+        language_selected = update.message.text.split(" ")[2]
+        update_config("language", language_selected)
+
+        await update.message.reply_text(
+            translate("✅ DONE"),
+            reply_markup=home_menu,
+        )
+    except Exception as e:
+        logger.critical(e)
+        await update.message.reply_text(
+            translate(
+                "I'm sorry but while I was processing your request an "
+                "error occurred!"
+            ),
             reply_markup=home_menu,
         )
 
@@ -1448,7 +1746,9 @@ async def message_all_users(context: ContextTypes.DEFAULT_TYPE):
 
 
 def main() -> None:
-    bot_handler_job_queue.run_once(message_all_users, 0, data="I'm BACK! 🤖")
+    bot_handler_job_queue.run_once(
+        message_all_users, 0, data=translate("I'm BACK! 🤖")
+    )
 
     # Add command handlers
     bot_handler.add_handler(CommandHandler("start", start))
@@ -1768,6 +2068,52 @@ def main() -> None:
                 )
             ],
             states={},
+            fallbacks=[CommandHandler("cancel", cancel)],
+        )
+    )
+
+    # "✴ GET OMD STATUS" command
+    bot_handler.add_handler(
+        ConversationHandler(
+            entry_points=[
+                MessageHandler(
+                    filters.Regex("^(✴ GET OMD STATUS)$"), get_omd_status
+                )
+            ],
+            states={},
+            fallbacks=[CommandHandler("cancel", cancel)],
+        )
+    )
+
+    # ⬆ START OMD SERVICES
+    bot_handler.add_handler(
+        ConversationHandler(
+            entry_points=[
+                MessageHandler(
+                    filters.Regex("^(⬆ START OMD SERVICES)$"),
+                    start_omd_services,
+                )
+            ],
+            states={},
+            fallbacks=[CommandHandler("cancel", cancel)],
+        )
+    )
+
+    # 🇩🇪 CHANGE LANGUAGE
+    bot_handler.add_handler(
+        ConversationHandler(
+            entry_points=[
+                MessageHandler(
+                    filters.Regex("^(🇩🇪 CHANGE LANGUAGE)$"), get_language
+                )
+            ],
+            states={
+                OPTION: [
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND), update_language
+                    )
+                ]
+            },
             fallbacks=[CommandHandler("cancel", cancel)],
         )
     )
