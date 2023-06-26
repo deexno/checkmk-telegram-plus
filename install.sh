@@ -19,7 +19,9 @@ bot_password=$3
 telegram_plus_dir=/omd/sites/$omd_site/local/share/checkmk-telegram-plus
 telegram_plus_service_name=checkmk-telegram-plus-$omd_site.service
 
-programs=(git runuser pip3 sed which)
+runuser_path=$(which runuser)
+
+programs=(git runuser pip3 sed)
 
 for program in "${programs[@]}"; do
     if ! command -v "$program" > /dev/null 2>&1; then
@@ -28,14 +30,13 @@ for program in "${programs[@]}"; do
     fi
 done
 
-runuser_path=$(which runuser)
-
 mkdir $telegram_plus_dir
 
 pip3 install --target=$telegram_plus_dir python-telegram-bot==20.1 --upgrade
 pip3 install --target=$telegram_plus_dir python-telegram-bot[job-queue]==20.1 --upgrade
 pip3 install --target=$telegram_plus_dir python-telegram-bot[callback-data]==20.1 --upgrade
 pip3 install --target=$telegram_plus_dir watchdog --upgrade
+pip3 install --target=$telegram_plus_dir translate --upgrade
 
 rm -Rf checkmk-telegram-plus
 git clone https://github.com/deexno/checkmk-telegram-plus.git
@@ -47,7 +48,7 @@ sed -i "s|<password_for_authentication>|$bot_password|g" resources/*
 sed -i "s|<telegram_plus_dir>|$telegram_plus_dir|g" resources/*
 sed -i "s|<runuser_path>|$runuser_path|g" resources/*
 
-# Add a default version to the bot config if it does not exist in order  to be compatible with the downstream versions
+# Add a default version to the bot config if it does not exist in order to be compatible with the downstream versions
 bot_version=$(curl --silent "https://api.github.com/repos/deexno/checkmk-telegram-plus/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
 cp -n resources/config.ini $telegram_plus_dir
 grep -qF -- "version" $telegram_plus_dir/config.ini || sed -i "s|\[telegram_bot\]|\[telegram_bot\]\nversion = v0.0.0|g" $telegram_plus_dir/config.ini
