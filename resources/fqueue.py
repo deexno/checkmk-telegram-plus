@@ -2,8 +2,6 @@ import os
 import uuid
 from datetime import datetime
 
-import pandas as pd
-
 
 class Queue(object):
     def __init__(self, file_path, order_by="created", ascending=True) -> None:
@@ -14,43 +12,52 @@ class Queue(object):
         self.update_queue()
 
     def store_queue(self):
-        self.queue.to_csv(
-            self.file_path, encoding="utf-8", sep="|", index=False
-        )
+        with open(self.file_path, "w", encoding="utf-8") as f:
+            for item in self.queue:
+                f.write(
+                    f"{item['event']}|"
+                    f"{item['id']}|"
+                    f"{item['priority']}|"
+                    f"{item['created']}\n"
+                )
 
     def update_queue(self):
         if not os.path.exists(self.file_path):
-            queue_columns = ["event", "id", "priority", "created"]
-            self.queue = pd.DataFrame([], columns=queue_columns)
+            self.queue = []
             self.store_queue()
         else:
-            self.queue = pd.read_csv(self.file_path, sep="|")
+            self.queue = []
+            with open(self.file_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    event, item_id, priority, created = line.strip().split("|")
+                    self.queue.append(
+                        {
+                            "event": event,
+                            "id": item_id,
+                            "priority": priority,
+                            "created": created,
+                        }
+                    )
 
-        self.queue = self.queue.sort_values(
-            by=self.order_by, ascending=self.ascending
-        )
+            self.queue.sort(
+                key=lambda item: item[self.order_by],
+                reverse=not self.ascending,
+            )
 
     def get_queue(self):
         self.update_queue()
         return self.queue
 
     def add_item(self, event, priority=0):
-        self.queue = pd.concat(
-            [
-                pd.DataFrame(
-                    {
-                        "event": [event],
-                        "id": [uuid.uuid1()],
-                        "priority": [priority],
-                        "created": [datetime.now()],
-                    }
-                ),
-                self.queue,
-            ]
-        ).reset_index(drop=True)
-
+        new_item = {
+            "event": event,
+            "id": str(uuid.uuid1()),
+            "priority": priority,
+            "created": datetime.now(),
+        }
+        self.queue.insert(0, new_item)
         self.store_queue()
 
-    def drop_item(self, id):
-        self.queue = self.queue[self.queue["id"] != id]
+    def drop_item(self, item_id):
+        self.queue = [item for item in self.queue if item["id"] != item_id]
         self.store_queue()

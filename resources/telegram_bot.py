@@ -187,7 +187,7 @@ languages = [
 def notifcation_listener():
     while True:
         try:
-            for id, notification in notifcation_queue.get_queue().iterrows():
+            for notification in notifcation_queue.get_queue():
                 bot_handler_job_queue.run_once(
                     send_automatic_notification, 3, data=notification["event"]
                 )
@@ -1489,7 +1489,7 @@ async def list_notify_queue(
     try:
         if is_user_authenticated(update.effective_user.id):
             notifications = notifcation_queue.get_queue()
-            notifications_count = len(notifications.index)
+            notifications_count = len(notifications)
 
             await update.message.reply_text(
                 translate(

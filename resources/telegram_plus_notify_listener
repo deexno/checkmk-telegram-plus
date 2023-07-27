@@ -17,10 +17,6 @@ destination_log_file_path=$destination_log_folder/$destination_log_file
 
 mkdir -p $destination_log_folder # Creates the directory if it doesn't already exist.
 
-if [ ! -e $destination_log_file_path ]; then
-   echo "event|id|priority|created" > $destination_log_file_path
-fi
-
 # Save all variables in a file which is then read and processed by the Telegram bot.
 if [[ ${NOTIFY_WHAT} == "SERVICE" ]]; then
     echo "$notify;${NOTIFY_SERVICEDESC};${NOTIFY_PREVIOUSSERVICEHARDSHORTSTATE};${NOTIFY_SERVICESHORTSTATE};${NOTIFY_SERVICEOUTPUT}|${random_line_identifier}|0|${now}" >> $destination_log_file_path
