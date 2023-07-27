@@ -4,19 +4,28 @@
 notification_mode=${NOTIFY_PARAMETER_1}
 echo "MODE: $notification_mode" # Prints the value of the notification_mode variable.
 
-random_line_identifier=$(( $RANDOM % 9999 + 1111 )) # Generates a random ID and assigns it to the random_line_identifier variable.
+now=$(date +"%Y-%m-%d %H:%M:%S.%N")
+
+random_line_identifier=$(( $RANDOM % 99999 + 11111 )) # Generates a random ID and assigns it to the random_line_identifier variable.
 echo "RANDOM ID: $random_line_identifier" # Prints the value of the random_line_identifier variable.
 
 notify="$notification_mode;${NOTIFY_HOSTADDRESS};${NOTIFY_HOSTNAME};${NOTIFY_HOSTGROUPNAMES}" # Concatenates needed values of environment variables into a notify variable.
 
 destination_log_folder=~/tmp/telegram_plus # Assigns the notification exportpath to the destination_log_folder variable.
+destination_log_file=notifications.queue
+destination_log_file_path=$destination_log_folder/$destination_log_file
+
 mkdir -p $destination_log_folder # Creates the directory if it doesn't already exist.
+
+if [ ! -e $destination_log_file_path ]; then
+   echo "event|id|priority|created" > $destination_log_file_path
+fi
 
 # Save all variables in a file which is then read and processed by the Telegram bot.
 if [[ ${NOTIFY_WHAT} == "SERVICE" ]]; then
-    echo "$notify;${NOTIFY_SERVICEDESC};${NOTIFY_PREVIOUSSERVICEHARDSHORTSTATE};${NOTIFY_SERVICESHORTSTATE};${NOTIFY_SERVICEOUTPUT}" >> $destination_log_folder/$random_line_identifier
+    echo "$notify;${NOTIFY_SERVICEDESC};${NOTIFY_PREVIOUSSERVICEHARDSHORTSTATE};${NOTIFY_SERVICESHORTSTATE};${NOTIFY_SERVICEOUTPUT}|${random_line_identifier}|0|${now}" >> $destination_log_file_path
 else
-    echo "$notify;HOST STATUS;${NOTIFY_PREVIOUSHOSTHARDSHORTSTATE};${NOTIFY_HOSTSHORTSTATE};${NOTIFY_HOSTOUTPUT}" >> $destination_log_folder/$random_line_identifier
+    echo "$notify;HOST STATUS;${NOTIFY_PREVIOUSHOSTHARDSHORTSTATE};${NOTIFY_HOSTSHORTSTATE};${NOTIFY_HOSTOUTPUT}|${random_line_identifier}|0|${now}" >> $destination_log_file_path
 fi
 
 echo "NOTIFY WAS SEND TO TELEGRAM PLUS"

@@ -4,9 +4,12 @@ import html
 import logging
 import os
 import subprocess
+import threading
+import time
 from datetime import datetime
 from pathlib import Path
 
+import fqueue
 import livestatus
 import requests
 from telegram import (
@@ -28,8 +31,6 @@ from telegram.ext import (
     filters,
 )
 from translate import Translator
-from watchdog.events import FileSystemEventHandler
-from watchdog.observers import Observer
 
 # Read configuration file
 config = configparser.RawConfigParser()
@@ -94,9 +95,12 @@ livestatus_socket_path = f"unix:{omd_site_dir}/tmp/run/live"
 livestatus_connection = livestatus.SingleSiteConnection(livestatus_socket_path)
 
 # Set path of query for notifications
-notify_query_path = f"{omd_site_dir}/tmp/telegram_plus"
+notify_query_folder = os.path.join(omd_site_dir, "tmp", "telegram_plus")
+notify_query_path = os.path.join(notify_query_folder, "notifications.queue")
 # Create Query Path if it does not exist
-Path(notify_query_path).mkdir(parents=True, exist_ok=True)
+Path(notify_query_folder).mkdir(parents=True, exist_ok=True)
+
+notifcation_queue = fqueue.Queue(notify_query_path)
 
 
 # Function to set bot commands
@@ -180,25 +184,18 @@ languages = [
 ]
 
 
-class NotifyHandler(FileSystemEventHandler):
-    # Method to be called when a file is created
-    def on_created(self, event):
-        # Get the file path
-        file_path = event.src_path
-
-        # Check if the path is a file and not a folder
-        if os.path.isfile(file_path):
-            try:
-                # Run the send_automatic_notification method
-                # The method is executed with run_once so that the message can
-                # be processed based on the Telegram bot queue and no
-                # problems occur
+def notifcation_listener():
+    while True:
+        try:
+            for id, notification in notifcation_queue.get_queue().iterrows():
                 bot_handler_job_queue.run_once(
-                    send_automatic_notification, 3, data=file_path
+                    send_automatic_notification, 3, data=notification["event"]
                 )
-            # Handle potential exceptions
-            except Exception as e:
-                logger.critical(e)
+                notifcation_queue.drop_item(notification["id"])
+
+            time.sleep(5)
+        except Exception as e:
+            logger.critical(e)
 
 
 def log_authenticated_access(username, command):
@@ -1139,7 +1136,7 @@ async def post_print_service_graphs(
 
 async def send_automatic_notification(context: ContextTypes.DEFAULT_TYPE):
     # Read the notification details from the file passed via the job scheduler
-    notificaion_variables = open(context.job.data, "r").read().split(";")
+    notificaion_variables = context.job.data.split(";")
     (
         type,
         ip,
@@ -1203,9 +1200,6 @@ async def send_automatic_notification(context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=InlineKeyboardMarkup([reply_markup]),
                 parse_mode="HTML",
             )
-
-    # Remove the file containing the notification details
-    os.remove(context.job.data)
 
 
 async def open_admin_settings(
@@ -1280,7 +1274,7 @@ async def get_logs(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 "<u><b>HERE ARE THE LAST 25 LOG ENTRIES:</b></u>:\n\n"
             )
 
-            for event in logs.split("\n")[:25]:
+            for event in logs.split("\n")[25:]:
                 event = event.replace("CRITICAL:", translate("🛑 CRITICAL\n"))
                 event = event.replace("WARNING:", translate("⚠ WARNING\n"))
 
@@ -1494,14 +1488,18 @@ async def list_notify_queue(
 ) -> None:
     try:
         if is_user_authenticated(update.effective_user.id):
-            files = os.listdir(notify_query_path)
+            notifications = notifcation_queue.get_queue()
+            notifications_count = len(notifications.index)
 
             await update.message.reply_text(
                 translate(
-                    "🚫 EMPTY" if len(files) == 0 else f"({len(files)}) {files}"
+                    "🚫 EMPTY"
+                    if notifications_count == 0
+                    else f"({notifications_count})\n\n{notifications}"
                 ),
                 reply_markup=home_menu,
             )
+
             log_authenticated_access(
                 update.effective_user.username, update.message.text
             )
@@ -2131,20 +2129,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    # Create File Watchdog called NotifyHandler
-    event_handler = NotifyHandler()
-    observer = Observer()
-
-    # Schedule the observer to watch notify_query_path for new files
-    observer.schedule(event_handler, path=notify_query_path, recursive=False)
-
-    # Remove existing files in the directory
-    for file in os.listdir(notify_query_path):
-        file_path = os.path.join(notify_query_path, file)
-        if os.path.isfile(file_path):
-            os.remove(file_path)
-
-    # Start the observer and the main bot function
-    observer.start()
-
+    threading.Thread(target=notifcation_listener).start()
     main()
