@@ -37,6 +37,7 @@ pip3 install --target=$telegram_plus_dir python-telegram-bot[job-queue]==20.1 --
 pip3 install --target=$telegram_plus_dir python-telegram-bot[callback-data]==20.1 --upgrade
 pip3 install --target=$telegram_plus_dir watchdog --upgrade
 pip3 install --target=$telegram_plus_dir translate --upgrade
+pip3 install --target=$telegram_plus_dir pandas --upgrade
 
 rm -Rf checkmk-telegram-plus
 git clone https://github.com/deexno/checkmk-telegram-plus.git
@@ -55,6 +56,7 @@ grep -qF -- "version" $telegram_plus_dir/config.ini || sed -i "s|\[telegram_bot\
 sed -i "s|.*version.*|version = $bot_version|g" $telegram_plus_dir/config.ini
 
 cp resources/telegram_bot.py $telegram_plus_dir
+cp resources/fqueue.py $telegram_plus_dir
 cp resources/checkmk-telegram-plus.service /etc/systemd/system/$telegram_plus_service_name
 
 chown -R $omd_site:$omd_site $telegram_plus_dir
