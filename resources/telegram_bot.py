@@ -261,6 +261,42 @@ def translate(text):
         return text
 
 
+def get_bot_version_details():
+    details = requests.get(
+        "https://api.github.com/repos/"
+        "deexno/checkmk-telegram-plus/releases/latest"
+    )
+
+    if config.has_option("telegram_bot", "version"):
+        installed_version = config["telegram_bot"]["version"]
+        up_to_date = details.json()["tag_name"] == installed_version
+
+        version_summary = (
+            f"<u><b>{translate('BOT VERSION DETAILS')}:</b></u>\n"
+            f"{translate('LATEST VERSION')}: "
+            f"{details.json()['tag_name']}\n"
+            f"{translate('INSTALLED VERSION')}: "
+            f"{'Yes' if up_to_date else 'No'} ({installed_version})\n"
+            f"{translate('PUPLISHED AT')}: "
+            f"{details.json()['published_at']}\n\n"
+            f"<u><b>{translate('CHANGES')}:</b></u>\n"
+            f"{translate(details.json()['body'])}\n\n"
+            "<a href='https://github.com/deexno/checkmk-telegram-plus'>"
+            f"{translate('OPEN THE UPDATE/INSTALLATION GUIDE')}</a>\n\n"
+            "<a href='https://www.paypal.com/paypalme/deexno'>"
+            f"{translate('SUPPORT MY WORK')} ❤️</a>\n"
+            "<a href='https://www.buymeacoffee.com/deexno'>"
+            f"{translate('BUY ME A COFFE')} ☕</a>"
+        )
+    else:
+        up_to_date = False
+        version_summary = translate(
+            "Your installed version could not be recognised 😓"
+        )
+
+    return up_to_date, version_summary
+
+
 # Method to initially start the conversation with the bot
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # Get the userdetails
@@ -1527,33 +1563,10 @@ async def check_for_updates(
 ) -> None:
     try:
         if is_user_authenticated(update.effective_user.id):
-            version_details = requests.get(
-                "https://api.github.com/repos/"
-                "deexno/checkmk-telegram-plus/releases/latest"
-            )
-
-            version_installed = translate("No")
-
-            if config.has_option("telegram_bot", "version"):
-                version_installed = translate(
-                    f"Yes ({config['telegram_bot']['version']})"
-                    if version_details.json()["tag_name"]
-                    == config["telegram_bot"]["version"]
-                    else f"No ({config['telegram_bot']['version']})"
-                )
+            up_to_date, version_summary = get_bot_version_details()
 
             await update.message.reply_html(
-                f"<u><b>{translate('BOT LATEST VERSION - DETAILS')}:</b></u>\n"
-                f"{translate('LATEST VERSION')}: "
-                f"{version_details.json()['tag_name']}\n"
-                f"{translate('VERSION INSTALLED')}: "
-                f"{version_installed}\n"
-                f"{translate('PUPLISHED AT')}: "
-                f"{version_details.json()['published_at']}\n\n"
-                f"<u><b>{translate('CHANGES')}:</b></u>\n"
-                f"{translate(version_details.json()['body'])}\n\n"
-                "<a href='https://github.com/deexno/checkmk-telegram-plus'>"
-                f"{translate('OPEN THE UPDATE/INSTALLATION GUIDE')}</a>",
+                version_summary,
                 reply_markup=home_menu,
             )
 
@@ -1747,6 +1760,15 @@ def main() -> None:
     bot_handler_job_queue.run_once(
         message_all_users, 0, data=translate("I'm BACK! 🤖")
     )
+
+    version_up_to_date, version_summary = get_bot_version_details()
+
+    if not version_up_to_date:
+        bot_handler_job_queue.run_once(
+            message_all_users,
+            0,
+            data=f"Your Bot Version is not up-to-date! \n\n{version_summary}",
+        )
 
     # Add command handlers
     bot_handler.add_handler(CommandHandler("start", start))
