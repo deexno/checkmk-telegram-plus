@@ -1,11 +1,26 @@
 <img src="src/checkmk-telegram-bot-banner.png" alt="Telegram Bot" height="auto" />
 This Telegram bot provides an interface to your Check_MK server. It allows you to send automatic error messages (alerts) via Telegram and to manually read out information about hosts and services.
 
+<hr>
+
+- [Examples](#examples)
+- [Info](#info)
+- [The Installation / Update process](#the-installation--update-process)
+- [Uninstall the Bot](#uninstall-the-bot)
+- [Usage](#usage)
+    - [Authenticate](#authenticate)
+    - [Receive information about hosts and services](#receive-information-about-hosts-and-services)
+    - [Enable and disable notifications](#enable-and-disable-notifications)
+- [Troubleshooting Guide](#troubleshooting-guide)
+- [Support my work](#support-my-work)
+
+<hr>
+
 # Examples
 <img src="src/Screenshot_01.png" width="23%"></img> <img src="src/Screenshot_02.jpg" width="23%"></img> <img src="src/Screenshot_03.png" width="23%"></img> <img src="src/Screenshot_07.png" width="23%"></img>
 
 # Info
-This bot is NOT meant to be used in groups. 
+This bot is NOT meant to be used in groups.
 
 # The Installation / Update process
 1. Install the bot. <br>
@@ -52,6 +67,9 @@ Retrieving data manually is easy. After authentication, you should see a new ico
 ### Enable and disable notifications
 You can enable or disable messages through the bot. "Loud" and "silent" notifications can also be toggled independently. Note that this setting is ONLY FOR YOU, and all other users will still receive their notifications as normal. **And they are decativated by default! So don't forget to activate them!**
 <br><img src="src/Screenshot_06.png" alt="Telegram Bot" height="auto" width="600" />
+
+# Troubleshooting Guide
+<b><a href="TROUBLESHOOTING.md">TROUBLESHOOTING GUIDE 🔨</a></b>
 
 # Support my work
 <a href="https://www.buymeacoffee.com/deexno" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174"></a>
