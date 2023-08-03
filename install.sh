@@ -39,9 +39,10 @@ pip3 install --target=$telegram_plus_dir watchdog --upgrade
 pip3 install --target=$telegram_plus_dir translate --upgrade
 pip3 install --target=$telegram_plus_dir bardapi --upgrade
 
-# Since bardapi installs an incompatible library on some systems, we will reinstall it.
+# Since lz4 can't be in the same folder and there is no better workaround
+# currently we have to remove lz4 in the bot folder and install it in the OMD side.
 rm -Rf $telegram_plus_dir/lz4*
-pip3 install --target=$telegram_plus_dir lz4 --upgrade
+runuser -l $omd_site -c 'pip3 install lz4'
 
 rm -Rf checkmk-telegram-plus
 git clone https://github.com/deexno/checkmk-telegram-plus.git
