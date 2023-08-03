@@ -37,7 +37,11 @@ pip3 install --target=$telegram_plus_dir python-telegram-bot[job-queue]==20.1 --
 pip3 install --target=$telegram_plus_dir python-telegram-bot[callback-data]==20.1 --upgrade
 pip3 install --target=$telegram_plus_dir watchdog --upgrade
 pip3 install --target=$telegram_plus_dir translate --upgrade
-pip3 install --target=$telegram_plus_dir pandas --upgrade
+pip3 install --target=$telegram_plus_dir bardapi --upgrade
+
+# Since bardapi installs an incompatible library on some systems, we will reinstall it.
+rm -Rf $telegram_plus_dir/lz4*
+pip3 install --target=$telegram_plus_dir lz4 --upgrade
 
 rm -Rf checkmk-telegram-plus
 git clone https://github.com/deexno/checkmk-telegram-plus.git
