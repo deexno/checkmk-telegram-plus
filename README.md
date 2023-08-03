@@ -102,13 +102,13 @@ Keep in mind that the AI is currently still highly experimental and I cannot gua
 In the future, it should be a personal assistant who helps with problems. It should also be possible in the future to fill it with data to give personalized output. This could be especially useful for on-call staff who may not always know every system perfectly.
 
 ### The help for automatic notifications
-After upgrading to version 3.0.0 or later, each Automatic Message has an additional button. The `HELP` button. When this button is pressed, the AI gives a summary of how the problem probably arose and what you can do to possibly solve it. Depending on the service output, these suggestions from the AI can be better or worse.
-<img src="src/Screenshot_16.png" alt="Telegram Bot" height="auto" width="350" /></img>
+After upgrading to version 3.0.0 or later, each Automatic Message has an additional button. The `HELP` button. When this button is pressed, the AI gives a summary of how the problem probably arose and what you can do to possibly solve it. Depending on the service output, these suggestions from the AI can be better or worse.<br>
+<img src="src/Screenshot_16.png" alt="Telegram Bot" height="auto" width="350" /></img><br>
 <img src="src/Screenshot_17.png" alt="Telegram Bot" height="auto" width="350" /></img>
 
 ### The Chat
-The bot also has the default AI functions you may know from ChatGPT. You can ask him questions about CheckMK and IT problems, but you can also use him for other things.
-<img src="src/Screenshot_18.png" alt="Telegram Bot" height="auto" width="350" /></img>
+The bot also has the default AI functions you may know from ChatGPT. You can ask him questions about CheckMK and IT problems, but you can also use him for other things.<br>
+<img src="src/Screenshot_18.png" alt="Telegram Bot" height="auto" width="350" /></img><br>
 <img src="src/Screenshot_19.png" alt="Telegram Bot" height="auto" width="350" /></img>
 
 # Troubleshooting Guide
