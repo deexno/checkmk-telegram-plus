@@ -11,7 +11,7 @@ This Telegram bot provides an interface to your Check_MK server. It allows you t
     - [Authenticate](#authenticate)
     - [Receive information about hosts and services](#receive-information-about-hosts-and-services)
     - [Enable and disable notifications](#enable-and-disable-notifications)
-    - [ACTIVATION OF THE AI FUNCTION (EXPERIMENTAL)](#activation-of-the-ai-function-experimental)
+    - [Activation of the AI function (EXPERIMENTAL)](#activation-of-the-ai-function-experimental)
 - [Using the AI](#using-the-ai)
     - [The help for automatic notifications](#the-help-for-automatic-notifications)
     - [The Chat](#the-chat)
@@ -72,7 +72,7 @@ Retrieving data manually is easy. After authentication, you should see a new ico
 You can enable or disable messages through the bot. "Loud" and "silent" notifications can also be toggled independently. Note that this setting is ONLY FOR YOU, and all other users will still receive their notifications as normal. **And they are decativated by default! So don't forget to activate them!**
 <br><img src="src/Screenshot_06.png" alt="Telegram Bot" height="auto" width="600" />
 
-### ACTIVATION OF THE AI FUNCTION (EXPERIMENTAL)
+### Activation of the AI function (EXPERIMENTAL)
 The bot now has an integrated AI since version 3.0.0. This is currently **still expertimentell**. It should help with problems and give support. Currently, only Bard is supported as an AI model, since no costs are currently incurred. It is planned to support the API of OPENAI in the future, should Bard not work anymore.
 
 To authenticate, it is essential to make use of your __Secure-1PSID value, which can be found within the cookies while navigating through Bard.
