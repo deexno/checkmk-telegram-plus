@@ -11,6 +11,10 @@ This Telegram bot provides an interface to your Check_MK server. It allows you t
     - [Authenticate](#authenticate)
     - [Receive information about hosts and services](#receive-information-about-hosts-and-services)
     - [Enable and disable notifications](#enable-and-disable-notifications)
+    - [ACTIVATION OF THE AI FUNCTION (EXPERIMENTAL)](#activation-of-the-ai-function-experimental)
+- [Using the AI](#using-the-ai)
+    - [The help for automatic notifications](#the-help-for-automatic-notifications)
+    - [The Chat](#the-chat)
 - [Troubleshooting Guide](#troubleshooting-guide)
 - [Support my work](#support-my-work)
 
@@ -67,6 +71,45 @@ Retrieving data manually is easy. After authentication, you should see a new ico
 ### Enable and disable notifications
 You can enable or disable messages through the bot. "Loud" and "silent" notifications can also be toggled independently. Note that this setting is ONLY FOR YOU, and all other users will still receive their notifications as normal. **And they are decativated by default! So don't forget to activate them!**
 <br><img src="src/Screenshot_06.png" alt="Telegram Bot" height="auto" width="600" />
+
+### ACTIVATION OF THE AI FUNCTION (EXPERIMENTAL)
+The bot now has an integrated AI since version 3.0.0. This is currently **still expertimentell**. It should help with problems and give support. Currently, only Bard is supported as an AI model, since no costs are currently incurred. It is planned to support the API of OPENAI in the future, should Bard not work anymore.
+
+To authenticate, it is essential to make use of your __Secure-1PSID value, which can be found within the cookies while navigating through Bard.
+
+It is worth mentioning that while the __Secure-1PSID is often colloquially referred to as an API KEY for ease of understanding, it does not hold an official designation as such. Furthermore, it is of utmost importance to safeguard your value and refrain from sharing it to maintain the security of your access.
+
+1. Visit https://bard.google.com/
+2. Press F12 or right-click and "Inspect":
+<img src="src/Screenshot_11.png" alt="Telegram Bot" height="auto" width="550" />
+3. Navigate to `Application` → `Cookies` → and copy the value of your `__Secure-1PSID` cookie:
+<img src="src/Screenshot_12.png" alt="Telegram Bot" height="auto" width="450" />
+
+4. Open the Telegram bot and navigate to `ADMIN SETTINGS` → `SET AI API KEY`.  For this step, the **bot must already be installed and running**.
+<img src="src/Screenshot_13.png" alt="Telegram Bot" height="auto" width="350" />
+
+5. Once you have done that, the bot will ask you for an API key. Send the bot the content of the __Secure-1PSID cookie value you received earlier.
+<img src="src/Screenshot_14.png" alt="Telegram Bot" height="auto" width="350" />
+
+6. navigate to `ADMIN SETTINGS` → `🤖 CHANGE AI MODEL` and then select bard as your AI model to guarantee the correct use of the model
+<img src="src/Screenshot_15.png" alt="Telegram Bot" height="auto" width="350" />
+
+# Using the AI
+The AI currently has 2 functions. If any suggestions are made, this can be expanded.
+
+Keep in mind that the AI is currently still highly experimental and I cannot guarantee its output. It is currently intended to be used to gain experience.
+
+In the future, it should be a personal assistant who helps with problems. It should also be possible in the future to fill it with data to give personalized output. This could be especially useful for on-call staff who may not always know every system perfectly.
+
+### The help for automatic notifications
+After upgrading to version 3.0.0 or later, each Automatic Message has an additional button. The `HELP` button. When this button is pressed, the AI gives a summary of how the problem probably arose and what you can do to possibly solve it. Depending on the service output, these suggestions from the AI can be better or worse.
+<img src="src/Screenshot_16.png" alt="Telegram Bot" height="auto" width="350" /></img>
+<img src="src/Screenshot_17.png" alt="Telegram Bot" height="auto" width="350" /></img>
+
+### The Chat
+The bot also has the default AI functions you may know from ChatGPT. You can ask him questions about CheckMK and IT problems, but you can also use him for other things.
+<img src="src/Screenshot_18.png" alt="Telegram Bot" height="auto" width="350" /></img>
+<img src="src/Screenshot_19.png" alt="Telegram Bot" height="auto" width="350" /></img>
 
 # Troubleshooting Guide
 <b><a href="TROUBLESHOOTING.md">TROUBLESHOOTING GUIDE 🔨</a></b>
