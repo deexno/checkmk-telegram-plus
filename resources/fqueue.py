@@ -15,9 +15,9 @@ class Queue(object):
         with open(self.file_path, "w", encoding="utf-8") as f:
             for item in self.queue:
                 f.write(
-                    f"{item['event']}|"
-                    f"{item['id']}|"
-                    f"{item['priority']}|"
+                    f"{item['event']};;"
+                    f"{item['id']};;"
+                    f"{item['priority']};;"
                     f"{item['created']}\n"
                 )
 
@@ -29,7 +29,9 @@ class Queue(object):
             self.queue = []
             with open(self.file_path, "r", encoding="utf-8") as f:
                 for line in f:
-                    event, item_id, priority, created = line.strip().split("|")
+                    event, item_id, priority, created = line.strip().split(
+                        ";;"
+                    )
                     self.queue.append(
                         {
                             "event": event,

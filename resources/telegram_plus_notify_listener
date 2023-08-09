@@ -19,9 +19,9 @@ mkdir -p $destination_log_folder # Creates the directory if it doesn't already e
 
 # Save all variables in a file which is then read and processed by the Telegram bot.
 if [[ ${NOTIFY_WHAT} == "SERVICE" ]]; then
-    echo "$notify;${NOTIFY_SERVICEDESC};${NOTIFY_PREVIOUSSERVICEHARDSHORTSTATE};${NOTIFY_SERVICESHORTSTATE};${NOTIFY_SERVICEOUTPUT}|${random_line_identifier}|0|${now}" >> $destination_log_file_path
+    echo "$notify;${NOTIFY_SERVICEDESC};${NOTIFY_PREVIOUSSERVICEHARDSHORTSTATE};${NOTIFY_SERVICESHORTSTATE};${NOTIFY_SERVICEOUTPUT};;${random_line_identifier};;0;;${now}" >> $destination_log_file_path
 else
-    echo "$notify;HOST STATUS;${NOTIFY_PREVIOUSHOSTHARDSHORTSTATE};${NOTIFY_HOSTSHORTSTATE};${NOTIFY_HOSTOUTPUT}|${random_line_identifier}|0|${now}" >> $destination_log_file_path
+    echo "$notify;HOST STATUS;${NOTIFY_PREVIOUSHOSTHARDSHORTSTATE};${NOTIFY_HOSTSHORTSTATE};${NOTIFY_HOSTOUTPUT};;${random_line_identifier};;0;;${now}" >> $destination_log_file_path
 fi
 
 echo "NOTIFY WAS SEND TO TELEGRAM PLUS"
