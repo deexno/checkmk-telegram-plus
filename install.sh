@@ -71,6 +71,7 @@ systemctl daemon-reload
 systemctl enable $telegram_plus_service_name
 systemctl restart $telegram_plus_service_name
 
+rm /omd/sites/$omd_site/tmp/telegram_plus/notifications.queue
 cp resources/telegram_plus_notify_listener /omd/sites/$omd_site/local/share/check_mk/notifications/
 chown $omd_site:$omd_site /omd/sites/$omd_site/local/share/check_mk/notifications/telegram_plus_notify_listener
 chmod 755 /omd/sites/$omd_site/local/share/check_mk/notifications/telegram_plus_notify_listener
