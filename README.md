@@ -35,6 +35,7 @@ Replace the variables in <> with your respective information.<br>
 ```bash
 wget https://raw.githubusercontent.com/deexno/checkmk-telegram-plus/main/install.sh
 bash install.sh <omd_site_name> <api_token> <bot_password>
+rm install.sh
 ```
 
 2. Create a rule that exports the notifications using our new Notification Plugin.
