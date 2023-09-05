@@ -5,13 +5,14 @@ This Telegram bot provides an interface to your Check_MK server. It allows you t
 
 - [Examples](#examples)
 - [Info](#info)
+- [System recommendations](#system-recommendations)
 - [The Installation / Update process](#the-installation--update-process)
 - [Uninstall the Bot](#uninstall-the-bot)
 - [Usage](#usage)
     - [Authenticate](#authenticate)
     - [Receive information about hosts and services](#receive-information-about-hosts-and-services)
     - [Enable and disable notifications](#enable-and-disable-notifications)
-    - [Activation of the AI function (EXPERIMENTAL)](#activation-of-the-ai-function-experimental)
+    - [ACTIVATION OF THE AI FUNCTION (EXPERIMENTAL)](#activation-of-the-ai-function-experimental)
 - [Using the AI](#using-the-ai)
     - [The help for automatic notifications](#the-help-for-automatic-notifications)
     - [The Chat](#the-chat)
@@ -26,6 +27,10 @@ This Telegram bot provides an interface to your Check_MK server. It allows you t
 # Info
 This bot is NOT meant to be used in groups.
 
+# System recommendations
+- CheckMK Version 2.1.p25 or higher
+- The programs python3, pip3, git, runuser & sed installed on the server
+
 # The Installation / Update process
 1. Install the bot. <br>
 Replace the variables in <> with your respective information.<br>
@@ -35,7 +40,6 @@ Replace the variables in <> with your respective information.<br>
 ```bash
 wget https://raw.githubusercontent.com/deexno/checkmk-telegram-plus/main/install.sh
 bash install.sh <omd_site_name> <api_token> <bot_password>
-rm install.sh
 ```
 
 2. Create a rule that exports the notifications using our new Notification Plugin.
@@ -73,7 +77,7 @@ Retrieving data manually is easy. After authentication, you should see a new ico
 You can enable or disable messages through the bot. "Loud" and "silent" notifications can also be toggled independently. Note that this setting is ONLY FOR YOU, and all other users will still receive their notifications as normal. **And they are decativated by default! So don't forget to activate them!**
 <br><img src="src/Screenshot_06.png" alt="Telegram Bot" height="auto" width="600" />
 
-### Activation of the AI function (EXPERIMENTAL)
+### ACTIVATION OF THE AI FUNCTION (EXPERIMENTAL)
 The bot now has an integrated AI since version 3.0.0. This is currently **still expertimentell**. It should help with problems and give support. Currently, only Bard is supported as an AI model, since no costs are currently incurred. It is planned to support the API of OPENAI in the future, should Bard not work anymore.
 
 To authenticate, it is essential to make use of your __Secure-1PSID value, which can be found within the cookies while navigating through Bard.
@@ -103,13 +107,13 @@ Keep in mind that the AI is currently still highly experimental and I cannot gua
 In the future, it should be a personal assistant who helps with problems. It should also be possible in the future to fill it with data to give personalized output. This could be especially useful for on-call staff who may not always know every system perfectly.
 
 ### The help for automatic notifications
-After upgrading to version 3.0.0 or later, each Automatic Message has an additional button. The `HELP` button. When this button is pressed, the AI gives a summary of how the problem probably arose and what you can do to possibly solve it. Depending on the service output, these suggestions from the AI can be better or worse.<br>
-<img src="src/Screenshot_16.png" alt="Telegram Bot" height="auto" width="350" /></img><br>
+After upgrading to version 3.0.0 or later, each Automatic Message has an additional button. The `HELP` button. When this button is pressed, the AI gives a summary of how the problem probably arose and what you can do to possibly solve it. Depending on the service output, these suggestions from the AI can be better or worse.
+<img src="src/Screenshot_16.png" alt="Telegram Bot" height="auto" width="350" /></img>
 <img src="src/Screenshot_17.png" alt="Telegram Bot" height="auto" width="350" /></img>
 
 ### The Chat
-The bot also has the default AI functions you may know from ChatGPT. You can ask him questions about CheckMK and IT problems, but you can also use him for other things.<br>
-<img src="src/Screenshot_18.png" alt="Telegram Bot" height="auto" width="350" /></img><br>
+The bot also has the default AI functions you may know from ChatGPT. You can ask him questions about CheckMK and IT problems, but you can also use him for other things.
+<img src="src/Screenshot_18.png" alt="Telegram Bot" height="auto" width="350" /></img>
 <img src="src/Screenshot_19.png" alt="Telegram Bot" height="auto" width="350" /></img>
 
 # Troubleshooting Guide
