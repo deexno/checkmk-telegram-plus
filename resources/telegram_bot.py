@@ -777,7 +777,7 @@ async def reschedule_check(
         # Execute the check via the CMK CLI and save the output in a variable
         # to output it to the user afterwards.
         check_result = subprocess.run(
-            [f"/omd/sites/{omd_site}/bin/cmk", "--check", hostname],
+            [os.path.join(omd_site_dir, "bin", "cmk"), "--check", hostname],
             stdout=subprocess.PIPE,
         )
 
@@ -863,7 +863,6 @@ async def get_host_problems(
 async def get_service_problems(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> int:
-
     try:
         # Get list of services from livestatus connection and sort
         # by description
@@ -1253,31 +1252,42 @@ async def send_automatic_notification(context: ContextTypes.DEFAULT_TYPE):
     for recipient in recipient_list:
         if recipient.isnumeric():
             reply_markup = [
-                InlineKeyboardButton(
-                    "🔂 RECHECK",
-                    callback_data=f"recheck,{description},{hostname},0",
-                )
+                [
+                    InlineKeyboardButton(
+                        "🔂 RECHECK",
+                        callback_data=f"recheck,{description},{hostname},0",
+                    )
+                ]
             ]
 
             if description != "":
-                reply_markup.append(
-                    InlineKeyboardButton(
-                        "📉 GRAPHS",
-                        callback_data=f"graph,{description},{hostname}",
-                    ),
-                )
-
-                reply_markup.append(
-                    InlineKeyboardButton(
-                        "🆘 HELP",
-                        callback_data="help,"
-                        f"hostname:{hostname};"
-                        f"service:{description};"
-                        f"from_state:{from_state};"
-                        f"to_state:{to_state};"
-                        f"output:{output}",
-                    ),
-                )
+                reply_markup = [
+                    [
+                        InlineKeyboardButton(
+                            "🔂 RECHECK",
+                            callback_data=f"recheck,{description},{hostname},0",
+                        ),
+                        InlineKeyboardButton(
+                            "📉 GRAPHS",
+                            callback_data=f"graph,{description},{hostname}",
+                        ),
+                        InlineKeyboardButton(
+                            "🆘 HELP",
+                            callback_data="help,"
+                            f"hostname:{hostname};"
+                            f"service:{description};"
+                            f"from_state:{from_state};"
+                            f"to_state:{to_state};"
+                            f"output:{output}",
+                        ),
+                    ],
+                    [
+                        InlineKeyboardButton(
+                            "✔️ ACKNOWLEDGE",
+                            callback_data=f"ack,{description},{hostname}",
+                        )
+                    ],
+                ]
 
             await context.bot.send_message(
                 chat_id=recipient,
@@ -1285,7 +1295,7 @@ async def send_automatic_notification(context: ContextTypes.DEFAULT_TYPE):
                 if type == "notifications_silent"
                 else False,
                 text=message,
-                reply_markup=InlineKeyboardMarkup([reply_markup]),
+                reply_markup=InlineKeyboardMarkup(reply_markup),
                 parse_mode="HTML",
             )
 
@@ -1647,7 +1657,7 @@ async def get_omd_status(
     try:
         # Execute the check via the OMD CLI
         check_result = subprocess.run(
-            [f"/omd/sites/{omd_site}/bin/omd", "status"],
+            [os.path.join(omd_site_dir, "bin", "omd"), "status"],
             stdout=subprocess.PIPE,
         )
 
@@ -1686,7 +1696,7 @@ async def start_omd_services(
 
         # Execute the start command via the OMD CLI
         check_result = subprocess.run(
-            [f"/omd/sites/{omd_site}/bin/omd", "start"],
+            [os.path.join(omd_site_dir, "bin", "omd"), "start"],
             stdout=subprocess.PIPE,
         )
 
@@ -2007,6 +2017,72 @@ async def ask_question(
             ),
             reply_markup=home_menu,
         )
+
+
+async def acknowledge_service_problem(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    # Check if the user is authenticated to use the bot
+    if is_user_authenticated(update.effective_user.id):
+        query = update.callback_query
+        await query.answer()
+        type, description, hostname = query.data.split(",")
+
+        now = int(time.time())
+        nagios_cmd = os.path.join(omd_site_dir, "tmp", "run", "nagios.cmd")
+        user = update.effective_user
+        username = user.username
+
+        comment = (
+            "ACKNOWLEDGE_SVC_PROBLEM;"
+            f"{hostname};"
+            f"{description};"
+            "2;"
+            "0;"
+            "0;"
+            f"{username};"
+            "The problem was acknowledged via the Telegram bot by "
+            f"{username} ({user.id})."
+        )
+
+        with open(nagios_cmd, "w") as f:
+            f.write(f"[{now}] {comment}\n")
+
+        try:
+            await context.bot.send_message(
+                text=translate(
+                    "The service was acknowledged:\n\n"
+                    f"HOST: {hostname}\n"
+                    f"SERVICE: {description}\n"
+                    "STICKY: YES\n"
+                    "NOTIFY OTHERS: YES\n"
+                    "PERSISTEN: NO\n"
+                ),
+                chat_id=update.effective_user.id,
+                disable_notification=True,
+                parse_mode="HTML",
+            )
+
+            bot_handler_job_queue.run_once(
+                message_all_users,
+                0,
+                data=translate(
+                    f"@{username} has acknowledged ✅ the service "
+                    f"'{description}' for the host '{hostname}'"
+                ),
+            )
+
+        except Exception as e:
+            # If an error occurs, notify the user
+            logger.critical(e)
+            await context.bot.send_message(
+                text=translate(
+                    "I'm sorry but while I was processing your request an "
+                    "error occurred!"
+                ),
+                chat_id=update.effective_user.id,
+                reply_markup=home_menu,
+            )
 
 
 def main() -> None:
@@ -2444,6 +2520,11 @@ def main() -> None:
     # Add callback handler for "🆘 HELP" button
     bot_handler.add_handler(
         CallbackQueryHandler(get_ai_help, pattern="^help,")
+    )
+
+    # Add callback handler for "✔️ ACKNOWLEDGE" button
+    bot_handler.add_handler(
+        CallbackQueryHandler(acknowledge_service_problem, pattern="^ack,")
     )
 
     # Start polling for updates
