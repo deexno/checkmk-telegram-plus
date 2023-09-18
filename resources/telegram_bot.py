@@ -12,7 +12,6 @@ from pathlib import Path
 import fqueue
 import livestatus
 import requests
-from bardapi import Bard
 from telegram import (
     BotCommand,
     InlineKeyboardButton,
@@ -261,38 +260,6 @@ def translate(text):
         return translator.translate(text)
     else:
         return text
-
-
-def update_gpt():
-    global gpt
-
-    try:
-        config.read("config.ini")
-
-        if config.has_section("ai"):
-            if config["ai"]["model"] == "bard":
-                gpt = Bard(token=config["ai"]["token"])
-    except Exception as e:
-        logger.critical(e)
-
-
-def ask_ai(question):
-    global gpt
-
-    try:
-        if gpt is not None:
-            return translate(gpt.get_answer(question)["content"])
-        else:
-            return (
-                "It seems that your AI is not configured. Have you "
-                "configured the AI as described in the documentation?"
-            )
-    except Exception as e:
-        logger.critical(e)
-        return translate(
-            "I'm sorry but while I was processing your request an "
-            f"error occurred!\n\n({e})"
-        )
 
 
 def get_bot_version_details():
@@ -1271,15 +1238,6 @@ async def send_automatic_notification(context: ContextTypes.DEFAULT_TYPE):
                             "📉 GRAPHS",
                             callback_data=f"graph,{description},{hostname}",
                         ),
-                        InlineKeyboardButton(
-                            "🆘 HELP",
-                            callback_data="help,"
-                            f"hostname:{hostname};"
-                            f"service:{description};"
-                            f"from_state:{from_state};"
-                            f"to_state:{to_state};"
-                            f"output:{output}",
-                        ),
                     ],
                     [
                         InlineKeyboardButton(
@@ -1333,10 +1291,6 @@ async def open_admin_settings(
                         [
                             KeyboardButton(text="✴ GET OMD STATUS"),
                             KeyboardButton(text="⬆ START OMD SERVICES"),
-                        ],
-                        [
-                            KeyboardButton(text="🤖 CHANGE AI MODEL"),
-                            KeyboardButton(text="🗝 SET AI API KEY"),
                         ],
                     ],
                     resize_keyboard=False,
@@ -1824,201 +1778,6 @@ async def message_all_users(context: ContextTypes.DEFAULT_TYPE):
             )
 
 
-async def get_ai_help(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> None:
-    # Check if the user is authenticated to use the bot
-    if is_user_authenticated(update.effective_user.id):
-        query = update.callback_query
-        await query.answer()
-
-        try:
-            data = query.data.replace("help,", "")
-
-            await context.bot.send_message(
-                text="I am glad to help you with your problem. "
-                "Let me think for a second. 🤖💭",
-                chat_id=update.effective_user.id,
-                disable_notification=True,
-                parse_mode="HTML",
-            )
-
-            ai_response = ask_ai(
-                "I have a problem with a service in CheckMK. "
-                "Explain me with the following data what the "
-                f"problem is and give me possible solutions: {data}"
-            )
-
-            await context.bot.send_message(
-                text=ai_response,
-                chat_id=update.effective_user.id,
-                disable_notification=True,
-                parse_mode="HTML",
-            )
-        except Exception as e:
-            # If an error occurs, notify the user
-            logger.critical(e)
-            await context.bot.send_message(
-                text=translate(
-                    "I'm sorry but while I was processing your request an "
-                    "error occurred!"
-                ),
-                chat_id=update.effective_user.id,
-                reply_markup=home_menu,
-            )
-
-
-async def get_ai_model(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> int:
-    try:
-        if is_user_authenticated(update.effective_user.id):
-            await update.message.reply_text(
-                translate(
-                    "Select an AI model. Attention! Important! The AI model "
-                    "Bard is highly experimental and it can lead to errors!"
-                ),
-                reply_markup=ReplyKeyboardMarkup.from_column(
-                    [KeyboardButton(text="bard")],
-                    resize_keyboard=False,
-                    one_time_keyboard=True,
-                    input_field_placeholder=translate(
-                        "SELECT A AI MODEL IN THE MENU"
-                    ),
-                ),
-            )
-            log_authenticated_access(
-                update.effective_user.username, update.message.text
-            )
-
-            return OPTION
-        else:
-            log_unauthenticated_access(
-                update.effective_user.username, update.message.text
-            )
-
-    except Exception as e:
-        logger.critical(e)
-        await update.message.reply_text(
-            translate(
-                "I'm sorry but while I was processing your request an "
-                "error occurred!"
-            ),
-            reply_markup=home_menu,
-        )
-
-    return ConversationHandler.END
-
-
-async def update_ai_model(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> None:
-    try:
-        if not config.has_section("ai"):
-            config.add_section("ai")
-
-        update_config("ai", "model", update.message.text)
-        update_gpt()
-
-        await update.message.reply_text(
-            translate("✅ DONE"),
-            reply_markup=home_menu,
-        )
-    except Exception as e:
-        logger.critical(e)
-        await update.message.reply_text(
-            translate(
-                "I'm sorry but while I was processing your request an "
-                "error occurred!"
-            ),
-            reply_markup=home_menu,
-        )
-
-    return ConversationHandler.END
-
-
-async def ask_for_ai_token(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> int:
-    if is_user_authenticated(update.effective_user.id):
-        await update.message.reply_text(translate("What is the API Key?"))
-        log_authenticated_access(
-            update.effective_user.username, update.message.text
-        )
-
-        return OPTION
-    else:
-        log_unauthenticated_access(
-            update.effective_user.username, update.message.text
-        )
-        return ConversationHandler.END
-
-
-async def update_ai_token(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> None:
-    try:
-        if not config.has_section("ai"):
-            config.add_section("ai")
-
-        update_config("ai", "token", update.message.text)
-        update_gpt()
-
-        await update.message.reply_text(
-            translate("✅ DONE"),
-            reply_markup=home_menu,
-        )
-    except Exception as e:
-        logger.critical(e)
-        await update.message.reply_text(
-            translate(
-                "I'm sorry but while I was processing your request an "
-                "error occurred!"
-            ),
-            reply_markup=home_menu,
-        )
-
-    return ConversationHandler.END
-
-
-async def ask_question(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> int:
-    try:
-        if is_user_authenticated(update.effective_user.id):
-            question = update.message.text
-
-            await update.message.reply_text(
-                "... 🤖💭",
-                reply_markup=home_menu,
-            )
-
-            ai_response = ask_ai(question)
-
-            await update.message.reply_markdown(
-                ai_response,
-                reply_markup=home_menu,
-            )
-
-            log_authenticated_access(
-                update.effective_user.username, update.message.text
-            )
-        else:
-            log_unauthenticated_access(
-                update.effective_user.username, update.message.text
-            )
-
-    except Exception as e:
-        logger.critical(e)
-        await update.message.reply_text(
-            translate(
-                "I'm sorry but while I was processing your request an "
-                "error occurred!"
-            ),
-            reply_markup=home_menu,
-        )
-
-
 async def acknowledge_service_problem(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
@@ -2467,59 +2226,12 @@ def main() -> None:
         )
     )
 
-    # 🤖 CHANGE AI MODEL
-    bot_handler.add_handler(
-        ConversationHandler(
-            entry_points=[
-                MessageHandler(
-                    filters.Regex("^(🤖 CHANGE AI MODEL)$"), get_ai_model
-                )
-            ],
-            states={
-                OPTION: [
-                    MessageHandler(
-                        filters.TEXT & (~filters.COMMAND), update_ai_model
-                    )
-                ]
-            },
-            fallbacks=[CommandHandler("cancel", cancel)],
-        )
-    )
-
-    # 🗝 SET AI API KEY
-    bot_handler.add_handler(
-        ConversationHandler(
-            entry_points=[
-                MessageHandler(
-                    filters.Regex("^(🗝 SET AI API KEY)$"), ask_for_ai_token
-                )
-            ],
-            states={
-                OPTION: [
-                    MessageHandler(
-                        filters.TEXT & (~filters.COMMAND), update_ai_token
-                    )
-                ]
-            },
-            fallbacks=[CommandHandler("cancel", cancel)],
-        )
-    )
-
-    bot_handler.add_handler(
-        MessageHandler(filters.TEXT & (~filters.COMMAND), ask_question)
-    )
-
     # Add callback handler for "🔂 RECHECK" button
     bot_handler.add_handler(CallbackQueryHandler(recheck, pattern="^recheck,"))
 
     # Add callback handler for "📉 GET SERVICE GRAPHS" button
     bot_handler.add_handler(
         CallbackQueryHandler(post_print_service_graphs, pattern="^graph,")
-    )
-
-    # Add callback handler for "🆘 HELP" button
-    bot_handler.add_handler(
-        CallbackQueryHandler(get_ai_help, pattern="^help,")
     )
 
     # Add callback handler for "✔️ ACKNOWLEDGE" button
@@ -2533,5 +2245,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     threading.Thread(target=notifcation_listener).start()
-    update_gpt()
     main()
