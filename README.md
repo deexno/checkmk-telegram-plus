@@ -12,10 +12,6 @@ This Telegram bot provides an interface to your Check_MK server. It allows you t
     - [Authenticate](#authenticate)
     - [Receive information about hosts and services](#receive-information-about-hosts-and-services)
     - [Enable and disable notifications](#enable-and-disable-notifications)
-    - [ACTIVATION OF THE AI FUNCTION (EXPERIMENTAL)](#activation-of-the-ai-function-experimental)
-- [Using the AI](#using-the-ai)
-    - [The help for automatic notifications](#the-help-for-automatic-notifications)
-    - [The Chat](#the-chat)
 - [Troubleshooting Guide](#troubleshooting-guide)
 - [Support my work](#support-my-work)
 
