@@ -1292,6 +1292,9 @@ async def open_admin_settings(
                             KeyboardButton(text="✴ GET OMD STATUS"),
                             KeyboardButton(text="⬆ START OMD SERVICES"),
                         ],
+                        [
+                            KeyboardButton(text="⬇ STOP OMD SERVICES"),
+                        ],
                     ],
                     resize_keyboard=False,
                     one_time_keyboard=True,
@@ -1674,6 +1677,43 @@ async def start_omd_services(
     # End the conversation handler
     return ConversationHandler.END
 
+async def stop_omd_services(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    try:
+        await update.message.reply_html(
+            translate(
+                "<u><b>THE SERVICES ARE ATTEMPTED TO STOP. "
+                "PLEASE WAIT</b></u>"
+            ),
+            reply_markup=home_menu,
+        )
+
+        # Execute the stop command via the OMD CLI
+        check_result = subprocess.run(
+            [os.path.join(omd_site_dir, "bin", "omd"), "stop"],
+            stdout=subprocess.PIPE,
+        )
+
+        # Return the answer of the check to the user
+        await update.message.reply_html(
+            f"<pre>{check_result.stdout.decode('utf-8')}</pre>",
+            reply_markup=home_menu,
+        )
+
+    except Exception as e:
+        # If an error occurs, print the error and reply with an error message
+        logger.critical(e)
+        await update.message.reply_text(
+            translate(
+                "I'm sorry but while I was processing your request an "
+                "error occurred!"
+            ),
+            reply_markup=home_menu,
+        )
+
+    # End the conversation handler
+    return ConversationHandler.END
 
 async def get_language(
     update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -2200,6 +2240,20 @@ def main() -> None:
                 MessageHandler(
                     filters.Regex("^(⬆ START OMD SERVICES)$"),
                     start_omd_services,
+                )
+            ],
+            states={},
+            fallbacks=[CommandHandler("cancel", cancel)],
+        )
+    )
+
+    # STOP OMD SERVICES
+    bot_handler.add_handler(
+        ConversationHandler(
+            entry_points=[
+                MessageHandler(
+                    filters.Regex("^(⬇ STOP OMD SERVICES)$"),
+                    stop_omd_services,
                 )
             ],
             states={},
