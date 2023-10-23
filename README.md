@@ -76,6 +76,10 @@ You can enable or disable messages through the bot. "Loud" and "silent" notifica
 # Troubleshooting Guide
 <b><a href="TROUBLESHOOTING.md">TROUBLESHOOTING GUIDE 🔨</a></b>
 
+# Mentions and articles about the bot
+[TUTONAUT](https://www.tutonaut.de/en/Receive-checkmk-notifications-via-telegram/)<br>
+[DEVINSIDER](https://www.dev-insider.de/kundenservice-verbesserung-mit-chatbots-ki-a-2ccfbe16571dd9071bdb096199ea82b7/)
+
 # Support my work
 <a href="https://www.buymeacoffee.com/deexno" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174"></a>
 <a href="https://www.paypal.com/paypalme/deexno" target="_blank"><img src="https://img.shields.io/badge/Support me-00457C?style=for-the-badge&logo=paypal&logoColor=white" height="41" /></a>
