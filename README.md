@@ -73,6 +73,36 @@ Retrieving data manually is easy. After authentication, you should see a new ico
 You can enable or disable messages through the bot. "Loud" and "silent" notifications can also be toggled independently. Note that this setting is ONLY FOR YOU, and all other users will still receive their notifications as normal. **And they are decativated by default! So don't forget to activate them!**
 <br><img src="src/Screenshot_06.png" alt="Telegram Bot" height="auto" width="600" />
 
+### Activate the admin settings ONLY for certain users
+If you only want to activate the admin settings ONLY for certain users, follow these steps:
+1. Open the config file of the bot
+```
+omd_site_name=<omd_site_name>
+nano /omd/sites/$omd_site_name/local/share/checkmk-telegram-plus/config.ini
+```
+2. If the option ‘admin_users’ does not yet exist in the config file, create it under the [telegram_bot] tab:
+```
+[telegram_bot]
+...
+allowed_users = XXX
+admin_users =
+notifications_loud = XXX
+...
+```
+3. Whitelist all users for whom you want to activate the admin option by listing their user ID under admin_users. You will find the ID of the respective users under allowed_users once they have verified themselves at the Telegram bot
+```
+# Example Config
+[telegram_bot]
+...
+allowed_users = deexno (987654321),adminuser2 (123456789),ViewUser0 (000000000),
+admin_users = deexno (987654321),adminuser2 (123456789),
+notifications_loud = XXX
+```
+4. Restart the Bot
+```
+systemctl restart checkmk-telegram-plus-$omd_site_name.service
+```
+
 # Troubleshooting Guide
 <b><a href="TROUBLESHOOTING.md">TROUBLESHOOTING GUIDE 🔨</a></b>
 
