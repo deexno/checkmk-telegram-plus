@@ -107,7 +107,7 @@ systemctl restart checkmk-telegram-plus-$omd_site_name.service
 <b><a href="TROUBLESHOOTING.md">TROUBLESHOOTING GUIDE 🔨</a></b>
 
 # Mentions and articles about the bot
-[TUTONAUT](https://www.tutonaut.de/en/Receive-checkmk-notifications-via-telegram/)<br>
+[[TUTONAUT](https://www.tutonaut.de/en/Receive-checkmk-notifications-via-telegram/)](https://www.tutonaut.de/checkmk-x-telegram-benachrichtigungen-status-spass/)<br>
 [DEVINSIDER](https://www.dev-insider.de/kundenservice-verbesserung-mit-chatbots-ki-a-2ccfbe16571dd9071bdb096199ea82b7/)
 
 # Support my work
