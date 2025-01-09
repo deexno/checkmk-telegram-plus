@@ -30,16 +30,15 @@ for program in "${programs[@]}"; do
     fi
 done
 
-mkdir $telegram_plus_dir
-
-pip3 install --target=$telegram_plus_dir python-telegram-bot==20.1 --upgrade
-pip3 install --target=$telegram_plus_dir python-telegram-bot[job-queue]==20.1 --upgrade
-pip3 install --target=$telegram_plus_dir python-telegram-bot[callback-data]==20.1 --upgrade
-pip3 install --target=$telegram_plus_dir watchdog --upgrade
-pip3 install --target=$telegram_plus_dir translate --upgrade
-
 rm -Rf checkmk-telegram-plus
 git clone https://github.com/deexno/checkmk-telegram-plus.git
+
+mkdir $telegram_plus_dir
+
+pip3 install --target=$telegram_plus_dir -r checkmk-telegram-plus/resources/requirements.txt --upgrade
+
+rm -Rf $telegram_plus_dir/httpx*
+
 cd checkmk-telegram-plus
 
 sed -i "s|<omd_site>|$omd_site|g" resources/*
