@@ -1,0 +1,7 @@
+python-telegram-bot
+python-telegram-bot[job-queue]
+python-telegram-bot[callback-data]
+watchdog
+translate
+openai==1.39.0
+pydantic==1.10.7
