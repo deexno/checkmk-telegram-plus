@@ -99,7 +99,16 @@ notify_query_path = os.path.join(notify_query_folder, "notifications.queue")
 Path(notify_query_folder).mkdir(parents=True, exist_ok=True)
 
 notifcation_queue = fqueue.Queue(notify_query_path)
+
 gpt = None
+
+if config.has_section("openai"):
+    try:
+        from openai import OpenAI
+
+        gpt = OpenAI(api_key=config["openai"]["token"])
+    except Exception as e:
+        logger.critical(e)
 
 
 # Function to set bot commands
@@ -198,13 +207,18 @@ def notifcation_listener():
 
 
 def log_authenticated_access(username, command):
-    logger.info(f"{username} has executed the command '{command}'")
+    logger.info(
+        "%s has executed the command '%s'",
+        username,
+        command,
+    )
 
 
 def log_unauthenticated_access(username, command):
     logger.warning(
-        f"{username} tried to execute the command '{command}' "
-        "but was not authorised to do so!"
+        "%s tried to execute the command '%s' " "but was not authorised to do so!",
+        username,
+        command,
     )
 
 
@@ -217,7 +231,7 @@ def is_user_authenticated(user_id):
     if str(user_id) in config["telegram_bot"]["allowed_users"]:
         return True
     else:
-        False
+        return False
 
 
 # Method to get the state "details"
@@ -262,7 +276,7 @@ def translate(text):
 
 def get_bot_version_details():
     details = requests.get(
-        "https://api.github.com/repos/" "deexno/checkmk-telegram-plus/releases/latest"
+        "https://api.github.com/repos/deexno/checkmk-telegram-plus/releases/latest"
     )
 
     if config.has_option("telegram_bot", "version"):
@@ -288,7 +302,9 @@ def get_bot_version_details():
         )
     else:
         up_to_date = False
-        version_summary = translate("Your installed version could not be recognised 😓")
+        version_summary = translate(
+            "Your installed version could not be recognised 😓",
+        )
 
     return up_to_date, version_summary
 
@@ -324,7 +340,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 # Method to show help
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def help_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
     # Check if the user is authenticated
     if is_user_authenticated(update.effective_user.id):
         # Send help message
@@ -336,9 +355,15 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                 "</a>"
             )
         )
-        log_authenticated_access(update.effective_user.username, update.message.text)
+        log_authenticated_access(
+            update.effective_user.username,
+            update.message.text,
+        )
     else:
-        log_unauthenticated_access(update.effective_user.username, update.message.text)
+        log_unauthenticated_access(
+            update.effective_user.username,
+            update.message.text,
+        )
 
 
 # Method to get the host name
@@ -391,7 +416,9 @@ async def get_host_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             # Get the list of hostgroups from livestatus connection
             # and sort them
             for hostgroup in sorted(
-                livestatus_connection.query_table("GET hostgroups\nColumns: name\n"),
+                livestatus_connection.query_table(
+                    "GET hostgroups\nColumns: name\n",
+                ),
                 key=lambda d: d[0],
             ):
                 # Append each hostgroup to the hostgroups list
@@ -406,7 +433,9 @@ async def get_host_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                     hostgroups,
                     resize_keyboard=False,
                     one_time_keyboard=True,
-                    input_field_placeholder=translate("SELECT A HOSTGROUP IN THE MENU"),
+                    input_field_placeholder=translate(
+                        "SELECT A HOSTGROUP IN THE MENU",
+                    ),
                 ),
             )
             log_authenticated_access(
@@ -425,11 +454,17 @@ async def get_host_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
         return HOSTGROUP
     else:
-        log_unauthenticated_access(update.effective_user.username, update.message.text)
+        log_unauthenticated_access(
+            update.effective_user.username,
+            update.message.text,
+        )
 
 
 # Method to get the service name
-async def get_service_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def get_service_name(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> int:
     services = []
 
     try:
@@ -455,7 +490,9 @@ async def get_service_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                 services,
                 resize_keyboard=False,
                 one_time_keyboard=True,
-                input_field_placeholder=translate("SELECT A SERVICE IN THE MENU"),
+                input_field_placeholder=translate(
+                    "SELECT A SERVICE IN THE MENU",
+                ),
             ),
         )
 
@@ -484,7 +521,10 @@ def get_host_status(hostname):
     return state
 
 
-async def print_host_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def print_host_status(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
     try:
         # Reply to the user with the current status of the host
         state = get_host_status(update.message.text)
@@ -496,14 +536,17 @@ async def print_host_status(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     except Exception as e:
         logger.critical(e)
         await update.message.reply_text(
-            "I'm sorry but while I was processing your request an " "error occurred!",
+            "I'm sorry but while I was processing your request an error occurred!",
             reply_markup=home_menu,
         )
 
     return ConversationHandler.END
 
 
-async def get_services(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def get_services(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> int:
     services = f"<u><b>{update.message.text}:</b></u>\n\n"
 
     try:
@@ -698,7 +741,10 @@ async def print_service_graphs(
     return ConversationHandler.END
 
 
-async def reschedule_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def reschedule_check(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> int:
     # Extract hostname from user's message
     hostname = update.message.text
 
@@ -738,7 +784,10 @@ async def reschedule_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     return ConversationHandler.END
 
 
-async def get_host_problems(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def get_host_problems(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> int:
     try:
         # Query the livestatus connection to get a list of hosts that are in
         # a problematic state and belong to the group specified in the
@@ -845,7 +894,10 @@ async def get_service_problems(
     return ConversationHandler.END
 
 
-async def get_pw_for_auth(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def get_pw_for_auth(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> int:
     # Check if the user is not already authenticated
     if not is_user_authenticated(update.effective_user.id):
         # If the user is not authenticated ask for the password
@@ -899,7 +951,7 @@ async def try_to_authenticate(
             )
         )
         logger.critical(
-            f"{user.username} tried to authenticate. The password was wrong."
+            "%s tried to authenticate. The password was wrong.", user.username
         )
 
     return ConversationHandler.END
@@ -933,10 +985,10 @@ async def get_notification_settings(
             reply_markup=ReplyKeyboardMarkup.from_column(
                 [
                     KeyboardButton(
-                        text=f"{current_setting_loud} " "AUTOMATIC MESSAGES (LOUD)"
+                        text=f"{current_setting_loud} AUTOMATIC MESSAGES (LOUD)"
                     ),
                     KeyboardButton(
-                        text=f"{current_setting_silent} " "AUTOMATIC MESSAGES (SILENT)"
+                        text=f"{current_setting_silent} AUTOMATIC MESSAGES (SILENT)"
                     ),
                 ],
                 resize_keyboard=False,
@@ -981,7 +1033,10 @@ async def change_notifications_setting(
         update_config("telegram_bot", setting, current_setting)
 
         # Notify the user that their setting has been changed
-        await update.message.reply_text(translate("✅ DONE"), reply_markup=home_menu)
+        await update.message.reply_text(
+            translate("✅ DONE"),
+            reply_markup=home_menu,
+        )
     except Exception as e:
         # If an error occurs, notify the user
         logger.critical(e)
@@ -1002,11 +1057,17 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             translate("Conversation cancelled ❌"),
             reply_markup=home_menu,
         )
-        log_authenticated_access(update.effective_user.username, update.message.text)
+        log_authenticated_access(
+            update.effective_user.username,
+            update.message.text,
+        )
         # End the conversation handler
         return ConversationHandler.END
     else:
-        log_authenticated_access(update.effective_user.username, update.message.text)
+        log_authenticated_access(
+            update.effective_user.username,
+            update.message.text,
+        )
 
 
 async def recheck(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1033,7 +1094,7 @@ async def recheck(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             # for rechecking
             await query.edit_message_text(
                 text=translate(
-                    f"(🔂 RECHECK {recheck_id} - {current_datetime})\n\n" f"{message}"
+                    f"(🔂 RECHECK {recheck_id} - {current_datetime})\n\n{message}"
                 ),
                 reply_markup=InlineKeyboardMarkup(
                     [
@@ -1047,7 +1108,7 @@ async def recheck(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                             ),
                             InlineKeyboardButton(
                                 "📉 GRAPHS",
-                                callback_data=f"graph," f"{description}," f"{hostname}",
+                                callback_data=f"graph," f"{description},{hostname}",
                             ),
                         ]
                     ]
@@ -1069,7 +1130,10 @@ async def recheck(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 reply_markup=home_menu,
             )
     else:
-        log_unauthenticated_access(update.effective_user.username, update.message.text)
+        log_unauthenticated_access(
+            update.effective_user.username,
+            update.message.text,
+        )
 
 
 async def post_print_service_graphs(
@@ -1183,6 +1247,15 @@ async def send_automatic_notification(context: ContextTypes.DEFAULT_TYPE):
                             "📉 GRAPHS",
                             callback_data=f"graph,{description},{hostname}",
                         ),
+                        InlineKeyboardButton(
+                            "🆘 HELP",
+                            callback_data="help,"
+                            f"hostname:{hostname};"
+                            f"service:{description};"
+                            f"from_state:{from_state};"
+                            f"to_state:{to_state};"
+                            f"output:{output}",
+                        ),
                     ],
                     [
                         InlineKeyboardButton(
@@ -1270,7 +1343,10 @@ async def open_admin_settings(
     return ConversationHandler.END
 
 
-async def get_logs(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def get_logs(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
     try:
         if is_user_authenticated(update.effective_user.id):
             log_path = os.path.join(omd_site_dir, "var", "log")
@@ -1280,7 +1356,9 @@ async def get_logs(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             logs = html.escape(log_file.read())
             log_file.close()
 
-            events = translate("<u><b>HERE ARE THE LAST 25 LOG ENTRIES:</b></u>:\n\n")
+            events = translate(
+                "<u><b>HERE ARE THE LAST 25 LOG ENTRIES:</b></u>:\n\n",
+            )
 
             for event in logs.split("\n")[25:]:
                 event = event.replace("CRITICAL:", translate("🛑 CRITICAL\n"))
@@ -1313,7 +1391,10 @@ async def get_logs(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     return ConversationHandler.END
 
 
-async def display_password(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def display_password(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
     try:
         if is_user_authenticated(update.effective_user.id):
             await update.message.reply_text(
@@ -1344,15 +1425,24 @@ async def display_password(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 async def get_pw(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if is_user_authenticated(update.effective_user.id):
         await update.message.reply_text(translate("What is the password?"))
-        log_authenticated_access(update.effective_user.username, update.message.text)
+        log_authenticated_access(
+            update.effective_user.username,
+            update.message.text,
+        )
 
         return PW
     else:
-        log_unauthenticated_access(update.effective_user.username, update.message.text)
+        log_unauthenticated_access(
+            update.effective_user.username,
+            update.message.text,
+        )
         return ConversationHandler.END
 
 
-async def change_password(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def change_password(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
     try:
         update_config(
             "telegram_bot", "password_for_authentication", update.message.text
@@ -1375,7 +1465,10 @@ async def change_password(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     return ConversationHandler.END
 
 
-async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def list_users(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
     try:
         if is_user_authenticated(update.effective_user.id):
             allowed_users = config["telegram_bot"]["allowed_users"]
@@ -1415,7 +1508,10 @@ async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     return ConversationHandler.END
 
 
-async def get_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def get_user(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> int:
     try:
         if is_user_authenticated(update.effective_user.id):
             users = []
@@ -1430,7 +1526,9 @@ async def get_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
                     users,
                     resize_keyboard=False,
                     one_time_keyboard=True,
-                    input_field_placeholder=translate("SELECT A USER IN THE MENU"),
+                    input_field_placeholder=translate(
+                        "SELECT A USER IN THE MENU",
+                    ),
                 ),
             )
             log_authenticated_access(
@@ -1456,7 +1554,10 @@ async def get_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return ConversationHandler.END
 
 
-async def delete_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def delete_user(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
     try:
         allowed_users = config["telegram_bot"]["allowed_users"]
         allowed_users = allowed_users.replace(f"{update.message.text},", "")
@@ -1479,7 +1580,10 @@ async def delete_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     return ConversationHandler.END
 
 
-async def list_notify_queue(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def list_notify_queue(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
     try:
         if is_user_authenticated(update.effective_user.id):
             notifications = notifcation_queue.get_queue()
@@ -1516,7 +1620,10 @@ async def list_notify_queue(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     return ConversationHandler.END
 
 
-async def check_for_updates(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def check_for_updates(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
     try:
         if is_user_authenticated(update.effective_user.id):
             up_to_date, version_summary = get_bot_version_details()
@@ -1539,7 +1646,10 @@ async def check_for_updates(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     return ConversationHandler.END
 
 
-async def get_omd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def get_omd_status(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> int:
     try:
         # Execute the check via the OMD CLI
         check_result = subprocess.run(
@@ -1568,7 +1678,10 @@ async def get_omd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     return ConversationHandler.END
 
 
-async def start_omd_services(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def start_omd_services(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> int:
     try:
         await update.message.reply_html(
             translate(
@@ -1604,7 +1717,10 @@ async def start_omd_services(update: Update, context: ContextTypes.DEFAULT_TYPE)
     return ConversationHandler.END
 
 
-async def stop_omd_services(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def stop_omd_services(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> int:
     try:
         await update.message.reply_html(
             translate(
@@ -1640,7 +1756,10 @@ async def stop_omd_services(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     return ConversationHandler.END
 
 
-async def get_language(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def get_language(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> int:
     try:
         if is_user_authenticated(update.effective_user.id):
             await update.message.reply_text(
@@ -1658,7 +1777,9 @@ async def get_language(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
                     languages,
                     resize_keyboard=False,
                     one_time_keyboard=True,
-                    input_field_placeholder=translate("SELECT A LANGUAGE IN THE MENU"),
+                    input_field_placeholder=translate(
+                        "SELECT A LANGUAGE IN THE MENU",
+                    ),
                 ),
             )
             log_authenticated_access(
@@ -1684,7 +1805,10 @@ async def get_language(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     return ConversationHandler.END
 
 
-async def update_language(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def update_language(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
     try:
         language_selected = update.message.text.split(" ")[2]
         update_config("telegram_bot", "language", language_selected)
@@ -1735,6 +1859,114 @@ async def message_all_users(context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=home_menu,
                 parse_mode="HTML",
             )
+
+
+def ask_ai(question):
+    try:
+        if gpt is not None:
+            return translate(
+                gpt.chat.completions.create(
+                    messages=[{"role": "user", "content": question}],
+                    model=config["openai"].get("model", "gpt-4o"),
+                )
+                .choices[0]
+                .message.content
+            )
+        else:
+            return (
+                "It seems that your AI is not configured. Have you "
+                "configured the AI as described in the documentation?"
+            )
+    except Exception as e:
+        logger.critical(e)
+        return translate(
+            "I'm sorry but while I was processing your request an "
+            f"error occurred!\n\n({e})"
+        )
+
+
+async def get_ai_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # Check if the user is authenticated to use the bot
+    if is_user_authenticated(update.effective_user.id):
+        query = update.callback_query
+        await query.answer()
+
+        try:
+            data = query.data.replace("help,", "")
+
+            await context.bot.send_message(
+                text="I am glad to help you with your problem. "
+                "Let me think for a second. 🤖💭",
+                chat_id=update.effective_user.id,
+                disable_notification=True,
+                parse_mode="HTML",
+            )
+
+            ai_response = ask_ai(
+                "I am experiencing an issue with a service in CheckMK."
+                "Using the following data, please analyze the problem, "
+                "explain the possible causes, and provide potential "
+                f"solutions: {data}"
+            )
+
+            await context.bot.send_message(
+                text=ai_response,
+                chat_id=update.effective_user.id,
+                disable_notification=True,
+                parse_mode="HTML",
+            )
+        except Exception as e:
+            # If an error occurs, notify the user
+            logger.critical(e)
+            await context.bot.send_message(
+                text=translate(
+                    "I'm sorry but while I was processing your request an "
+                    "error occurred!"
+                ),
+                chat_id=update.effective_user.id,
+                reply_markup=home_menu,
+            )
+
+
+async def ask_question(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> int:
+    try:
+        if is_user_authenticated(update.effective_user.id):
+            question = update.message.text
+
+            await update.message.reply_text(
+                "... 🤖💭",
+                reply_markup=home_menu,
+            )
+
+            ai_response = ask_ai(question)
+
+            await update.message.reply_markdown(
+                ai_response,
+                reply_markup=home_menu,
+            )
+
+            log_authenticated_access(
+                update.effective_user.username,
+                update.message.text,
+            )
+        else:
+            log_unauthenticated_access(
+                update.effective_user.username,
+                update.message.text,
+            )
+
+    except Exception as e:
+        logger.critical(e)
+        await update.message.reply_text(
+            translate(
+                "I'm sorry but while I was processing your request an "
+                "error occurred!"
+            ),
+            reply_markup=home_menu,
+        )
 
 
 async def acknowledge_service_problem(
@@ -1804,7 +2036,11 @@ async def acknowledge_service_problem(
 
 
 def main() -> None:
-    bot_handler_job_queue.run_once(message_all_users, 0, data=translate("I'm BACK! 🤖"))
+    bot_handler_job_queue.run_once(
+        message_all_users,
+        0,
+        data=translate("I'm BACK! 🤖"),
+    )
 
     version_up_to_date, version_summary = get_bot_version_details()
 
@@ -1825,14 +2061,23 @@ def main() -> None:
     bot_handler.add_handler(
         ConversationHandler(
             entry_points=[
-                MessageHandler(filters.Regex("^(⭕ GET HOST STATUS)$"), get_host_group)
+                MessageHandler(
+                    filters.Regex("^(⭕ GET HOST STATUS)$"),
+                    get_host_group,
+                )
             ],
             states={
                 HOSTGROUP: [
-                    MessageHandler(filters.TEXT & (~filters.COMMAND), get_host_name)
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND),
+                        get_host_name,
+                    )
                 ],
                 HOSTNAME: [
-                    MessageHandler(filters.TEXT & (~filters.COMMAND), print_host_status)
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND),
+                        print_host_status,
+                    )
                 ],
             },
             fallbacks=[CommandHandler("cancel", cancel)],
@@ -1849,10 +2094,16 @@ def main() -> None:
             ],
             states={
                 HOSTGROUP: [
-                    MessageHandler(filters.TEXT & (~filters.COMMAND), get_host_name)
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND),
+                        get_host_name,
+                    )
                 ],
                 HOSTNAME: [
-                    MessageHandler(filters.TEXT & (~filters.COMMAND), get_services)
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND),
+                        get_services,
+                    )
                 ],
             },
             fallbacks=[CommandHandler("cancel", cancel)],
@@ -1869,10 +2120,16 @@ def main() -> None:
             ],
             states={
                 HOSTGROUP: [
-                    MessageHandler(filters.TEXT & (~filters.COMMAND), get_host_name)
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND),
+                        get_host_name,
+                    )
                 ],
                 HOSTNAME: [
-                    MessageHandler(filters.TEXT & (~filters.COMMAND), get_service_name)
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND),
+                        get_service_name,
+                    )
                 ],
                 SERVICE: [
                     MessageHandler(
@@ -1896,7 +2153,10 @@ def main() -> None:
             ],
             states={
                 HOSTGROUP: [
-                    MessageHandler(filters.TEXT & (~filters.COMMAND), get_host_problems)
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND),
+                        get_host_problems,
+                    )
                 ]
             },
             fallbacks=[CommandHandler("cancel", cancel)],
@@ -1969,10 +2229,16 @@ def main() -> None:
             ],
             states={
                 HOSTGROUP: [
-                    MessageHandler(filters.TEXT & (~filters.COMMAND), get_host_name)
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND),
+                        get_host_name,
+                    )
                 ],
                 HOSTNAME: [
-                    MessageHandler(filters.TEXT & (~filters.COMMAND), get_service_name)
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND),
+                        get_service_name,
+                    )
                 ],
                 SERVICE: [
                     MessageHandler(
@@ -1988,14 +2254,23 @@ def main() -> None:
     bot_handler.add_handler(
         ConversationHandler(
             entry_points=[
-                MessageHandler(filters.Regex("^(🔄 RESCHEDULE CHECK)$"), get_host_group)
+                MessageHandler(
+                    filters.Regex("^(🔄 RESCHEDULE CHECK)$"),
+                    get_host_group,
+                )
             ],
             states={
                 HOSTGROUP: [
-                    MessageHandler(filters.TEXT & (~filters.COMMAND), get_host_name)
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND),
+                        get_host_name,
+                    )
                 ],
                 HOSTNAME: [
-                    MessageHandler(filters.TEXT & (~filters.COMMAND), reschedule_check)
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND),
+                        reschedule_check,
+                    )
                 ],
             },
             fallbacks=[CommandHandler("cancel", cancel)],
@@ -2028,7 +2303,10 @@ def main() -> None:
     bot_handler.add_handler(
         ConversationHandler(
             entry_points=[
-                MessageHandler(filters.Regex("^(🔓 GET PASSWORD)$"), display_password)
+                MessageHandler(
+                    filters.Regex("^(🔓 GET PASSWORD)$"),
+                    display_password,
+                )
             ],
             states={},
             fallbacks=[CommandHandler("cancel", cancel)],
@@ -2042,7 +2320,12 @@ def main() -> None:
                 MessageHandler(filters.Regex("^(🔒 CHANGE PASSWORD)$"), get_pw)
             ],
             states={
-                PW: [MessageHandler(filters.TEXT & (~filters.COMMAND), change_password)]
+                PW: [
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND),
+                        change_password,
+                    )
+                ]
             },
             fallbacks=[CommandHandler("cancel", cancel)],
         )
@@ -2066,7 +2349,12 @@ def main() -> None:
                 MessageHandler(filters.Regex("^(🗑️ DELETE USERS)$"), get_user)
             ],
             states={
-                OPTION: [MessageHandler(filters.TEXT & (~filters.COMMAND), delete_user)]
+                OPTION: [
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND),
+                        delete_user,
+                    )
+                ]
             },
             fallbacks=[CommandHandler("cancel", cancel)],
         )
@@ -2091,7 +2379,8 @@ def main() -> None:
         ConversationHandler(
             entry_points=[
                 MessageHandler(
-                    filters.Regex("^(🔔 LIST NOTIFY QUEUE)$"), list_notify_queue
+                    filters.Regex("^(🔔 LIST NOTIFY QUEUE)$"),
+                    list_notify_queue,
                 )
             ],
             states={},
@@ -2103,7 +2392,10 @@ def main() -> None:
     bot_handler.add_handler(
         ConversationHandler(
             entry_points=[
-                MessageHandler(filters.Regex("^(✴ GET OMD STATUS)$"), get_omd_status)
+                MessageHandler(
+                    filters.Regex("^(✴ GET OMD STATUS)$"),
+                    get_omd_status,
+                )
             ],
             states={},
             fallbacks=[CommandHandler("cancel", cancel)],
@@ -2142,15 +2434,25 @@ def main() -> None:
     bot_handler.add_handler(
         ConversationHandler(
             entry_points=[
-                MessageHandler(filters.Regex("^(🇩🇪 CHANGE LANGUAGE)$"), get_language)
+                MessageHandler(
+                    filters.Regex("^(🇩🇪 CHANGE LANGUAGE)$"),
+                    get_language,
+                )
             ],
             states={
                 OPTION: [
-                    MessageHandler(filters.TEXT & (~filters.COMMAND), update_language)
+                    MessageHandler(
+                        filters.TEXT & (~filters.COMMAND),
+                        update_language,
+                    )
                 ]
             },
             fallbacks=[CommandHandler("cancel", cancel)],
         )
+    )
+
+    bot_handler.add_handler(
+        MessageHandler(filters.TEXT & (~filters.COMMAND), ask_question)
     )
 
     # Add callback handler for "🔂 RECHECK" button
@@ -2165,6 +2467,9 @@ def main() -> None:
     bot_handler.add_handler(
         CallbackQueryHandler(acknowledge_service_problem, pattern="^ack,")
     )
+
+    # Add callback handler for "🆘 HELP" button
+    bot_handler.add_handler(CallbackQueryHandler(get_ai_help, pattern="^help,"))
 
     # Start polling for updates
     bot_handler.run_polling()
