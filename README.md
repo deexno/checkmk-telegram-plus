@@ -12,6 +12,8 @@ This Telegram bot provides an interface to your Check_MK server. It allows you t
     - [Authenticate](#authenticate)
     - [Receive information about hosts and services](#receive-information-about-hosts-and-services)
     - [Enable and disable notifications](#enable-and-disable-notifications)
+- [Activation of the AI function](#activation-of-the-ai-function)
+- [Using the AI](#using-the-ai)
 - [Troubleshooting Guide](#troubleshooting-guide)
 - [Support my work](#support-my-work)
 
@@ -102,6 +104,59 @@ notifications_loud = XXX
 ```
 systemctl restart checkmk-telegram-plus-$omd_site_name.service
 ```
+
+### Activation of the AI function
+1. Open the configfile
+```bash
+omd_site_name=<omd_site_name>
+telegram_plus_dir=/omd/sites/$omd_site_name/local/share/checkmk-telegram-plus
+nano $telegram_plus_dir/config.ini
+```
+
+2. Store your API key from openai under ‘token’. Your config file should then look like this:
+```
+[telegram_bot]
+language = en
+version = v3.2.0
+api_token = XXXXXXXXXXXXXX
+password_for_authentication = XXXXXXXXXXXXXX
+allowed_users = XXXXXXXXXXXXXX
+admin_users = XXXXXXXXXXXXXX
+notifications_loud = XXXXXXXXXXXXXX
+notifications_silent = XXXXXXXXXXXXXX
+
+[check_mk]
+site = XXXXXXXXXXXXXX
+
+[openai]
+model = gpt-4o-mini
+token = YOUR-TOKEN
+```
+
+3. Restart the server
+```bash
+telegram_plus_service_name=checkmk-telegram-plus-$omd_site_name.service
+systemctl restart $telegram_plus_service_name
+```
+
+Info: API keys can be created at https://platform.openai.com/api-keys after you have created an account at openai and topped up credit
+
+# Using the AI
+The AI currently has 2 functions. If any suggestions are made, this can be expanded.
+
+Keep in mind that the AI is currently still highly experimental and I cannot guarantee its output. It is currently intended to be used to gain experience.
+
+In the future, it should be a personal assistant who helps with problems. It should also be possible in the future to fill it with data to give personalized output. This could be especially useful for on-call staff who may not always know every system perfectly.
+
+### The help for automatic notifications
+After upgrading to version 3.0.0 or later, each Automatic Message has an additional button. The `HELP` button. When this button is pressed, the AI gives a summary of how the problem probably arose and what you can do to possibly solve it. Depending on the service output, these suggestions from the AI can be better or worse.<br>
+<img src="src/Screenshot_16.png" alt="Telegram Bot" height="auto" width="350" /></img><br>
+<img src="src/Screenshot_17.png" alt="Telegram Bot" height="auto" width="350" /></img>
+
+### The Chat
+The bot also has the default AI functions you may know from ChatGPT. You can ask him questions about CheckMK and IT problems, but you can also use him for other things.<br>
+<img src="src/Screenshot_18.png" alt="Telegram Bot" height="auto" width="350" /></img><br>
+<img src="src/Screenshot_19.png" alt="Telegram Bot" height="auto" width="350" /></img>
 
 # Troubleshooting Guide
 <b><a href="TROUBLESHOOTING.md">TROUBLESHOOTING GUIDE 🔨</a></b>
