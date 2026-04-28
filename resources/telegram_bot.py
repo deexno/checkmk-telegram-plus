@@ -31,6 +31,7 @@ from telegram.ext import (
     filters,
 )
 from translate import Translator
+from cmk.notification_plugins.utils import render_cmk_graphs
 
 # Read configuration file
 config = configparser.RawConfigParser()
@@ -663,28 +664,18 @@ async def print_service_details(
 
 
 def get_service_graphs(hostname, service):
-    # Construct URL to request graphs of the specified service on the
-    # specified host
-    url = (
-        f"http://localhost:80/{omd_site}/check_mk/ajax_graph_images.py?"
-        f"host={hostname}&"
-        f"service={service}"
-    )
-
-    # Send a GET request to the constructed URL and retrieve the response
-    response = requests.get(url, allow_redirects=True, verify=False)
-
-    # Raise an exception if there was an HTTP error
-    response.raise_for_status()
-
-    # Parse the JSON response into a list of base64-encoded strings
-    # representing images
-    jsonResponse = response.json()
+    render_config = {
+        "HOSTNAME": hostname,
+        "SERVICEDESC": service,
+        "WHAT": "SERVICE",
+        "OMD_SITE": omd_site,
+        "PARAMETER_GRAPHS_PER_NOTIFICATION": "15" # we might want to configure this at some point, if it changes anything at all...
+    }
 
     # Create a list of InputMediaPhoto objects from the decoded images
     graphs = []
-    for graph in [base64.b64decode(s) for s in jsonResponse]:
-        graphs.append(InputMediaPhoto(graph))
+    for graph in list(render_cmk_graphs(render_config)):
+        graphs.append(InputMediaPhoto(graph.data))
 
     # Split the graphs into groups of 10 or fewer, since Telegram's API has a
     # limit on the number of media items per message
