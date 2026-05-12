@@ -13,7 +13,7 @@ class CheckmkBridgeError(RuntimeError):
 
 
 class CheckmkBridgeClient:
-    def __init__(self, socket_path: str, timeout: float = 5.0) -> None:
+    def __init__(self, socket_path: str, timeout: float = 90.0) -> None:
         self.socket_path = socket_path
         self.timeout = timeout
 
@@ -45,7 +45,15 @@ class CheckmkBridgeClient:
         header, _, raw_body = response.partition(b"\r\n\r\n")
         status = header.split(b"\r\n", 1)[0]
         if not status.startswith((b"HTTP/1.0 200", b"HTTP/1.1 200")):
-            raise CheckmkBridgeError(status.decode("utf-8", "replace"))
+            try:
+                payload = json.loads(raw_body.decode("utf-8"))
+                error = payload.get("error") if isinstance(payload, dict) else None
+            except Exception:
+                error = raw_body.decode("utf-8", "replace")
+            message = status.decode("utf-8", "replace")
+            if error:
+                message = f"{message}: {error}"
+            raise CheckmkBridgeError(message)
         payload = json.loads(raw_body.decode("utf-8"))
         if not payload.get("ok"):
             raise CheckmkBridgeError(str(payload.get("error", "bridge call failed")))

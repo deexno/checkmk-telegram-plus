@@ -694,11 +694,9 @@ async def print_service_details(
     except Exception as e:
         # If an error occurs, print the error and reply with an error message
         logger.critical(e)
-        await update.message.reply_text(
-            translate(
-                "I'm sorry but while I was processing your request an "
-                "error occurred!"
-            ),
+        await update.message.reply_html(
+            translate("I'm sorry but while I was processing your request an error occurred!")
+            + f"\n\n<code>{html.escape(str(e))}</code>",
             reply_markup=home_menu,
         )
 
@@ -754,11 +752,9 @@ async def print_service_graphs(
     except Exception as e:
         # If an error occurs, print the error and reply with an error message
         logger.critical(e)
-        await update.message.reply_text(
-            translate(
-                "I'm sorry but while I was processing your request an "
-                "error occurred!"
-            ),
+        await update.message.reply_html(
+            translate("I'm sorry but while I was processing your request an error occurred!")
+            + f"\n\n<code>{html.escape(str(e))}</code>",
             reply_markup=home_menu,
         )
 
@@ -1175,12 +1171,16 @@ async def post_print_service_graphs(
             # If an error occurs, notify the user
             logger.critical(e)
             await context.bot.send_message(
-                text=translate(
-                    "I'm sorry but while I was processing your request an "
-                    "error occurred!"
+                text=(
+                    translate(
+                        "I'm sorry but while I was processing your request an "
+                        "error occurred!"
+                    )
+                    + f"\n\n<code>{html.escape(str(e))}</code>"
                 ),
                 chat_id=update.effective_user.id,
                 reply_markup=home_menu,
+                parse_mode="HTML",
             )
 
 

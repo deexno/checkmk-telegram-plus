@@ -1,6 +1,7 @@
 python-telegram-bot
 python-telegram-bot[job-queue]
 python-telegram-bot[callback-data]
+httpx<0.28
 watchdog
 translate
 openai==1.39.0

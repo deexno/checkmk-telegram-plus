@@ -23,11 +23,13 @@ usage() {
 Usage:
   sudo bash install.sh
 
-Optional non-interactive usage:
+Optional preseeded usage:
   sudo bash install.sh mysite 123456:ABC-DEF mySecretPassword
 
-The installer asks for the CheckMK site name, Telegram API token, bot password,
-and version to install. A branch install option is available for testing only.
+The installer asks for the CheckMK site name and version to install. Existing
+configuration values are preserved by default. Missing required values such as
+the Telegram API token and bot password are requested during the config review.
+A branch install option is available for testing only.
 
 This installer uses the split architecture:
   - Checkmk only receives a minimal notification adapter.
@@ -49,6 +51,65 @@ read_secret_from_tty() {
     read -r -s -p "$prompt" value < /dev/tty
     echo > /dev/tty
     printf '%s' "$value"
+}
+
+is_placeholder_value() {
+    case "$1" in
+        ""|"<api_token>"|"<password_for_authentication>"|"<omd_site>"|"<state_dir>"|"<log_dir>"|"<run_dir>"|"<socket_path>"|"<bridge_socket_path>"|"<notification_queue>"|"<fallback_queue>"|"<openai_token>"|"YOUR-TOKEN")
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+prompt_value() {
+    local label=$1
+    local current=${2:-}
+    local default_value=${3:-}
+    local required=${4:-false}
+    local value
+
+    while true; do
+        if [ -n "$current" ] && ! is_placeholder_value "$current"; then
+            value=$(read_from_tty "$label [$current]: ")
+            value=${value:-$current}
+        elif [ -n "$default_value" ]; then
+            value=$(read_from_tty "$label [$default_value]: ")
+            value=${value:-$default_value}
+        else
+            value=$(read_from_tty "$label: ")
+        fi
+
+        if [ "$required" != "true" ] || ! is_placeholder_value "$value"; then
+            printf '%s' "$value"
+            return 0
+        fi
+        echo "This value is required and cannot be empty." > /dev/tty
+    done
+}
+
+prompt_secret_value() {
+    local label=$1
+    local current=${2:-}
+    local required=${3:-false}
+    local value
+
+    while true; do
+        if [ -n "$current" ] && ! is_placeholder_value "$current"; then
+            value=$(read_secret_from_tty "$label [configured, press Enter to keep]: ")
+            value=${value:-$current}
+        else
+            value=$(read_secret_from_tty "$label: ")
+        fi
+
+        if [ "$required" != "true" ] || ! is_placeholder_value "$value"; then
+            printf '%s' "$value"
+            return 0
+        fi
+        echo "This value is required and cannot be empty." > /dev/tty
+    done
 }
 
 cleanup() {
@@ -99,14 +160,6 @@ bot_password=${3:-}
 
 while [ -z "$omd_site" ]; do
     omd_site=$(read_from_tty "CheckMK site name: ")
-done
-
-while [ -z "$api_token" ]; do
-    api_token=$(read_secret_from_tty "Telegram API token: ")
-done
-
-while [ -z "$bot_password" ]; do
-    bot_password=$(read_secret_from_tty "Bot password: ")
 done
 
 omd_site_dir="/omd/sites/$omd_site"
@@ -270,7 +323,7 @@ mkdir -p "$app_dir" "$venv_dir" "$config_dir" "$state_dir/fallback" "$log_dir" "
 chown "$app_user:$app_user" "$state_root" "$run_dir"
 chown -R "$app_user:$app_user" "$state_dir" "$log_dir"
 chmod 750 "$state_root" "$state_dir" "$state_dir/fallback" "$log_dir"
-chmod 770 "$run_dir"
+chmod 2770 "$run_dir"
 chown root:"$app_user" "$run_dir"
 
 old_config="$site_share_dir/config.ini"
@@ -292,8 +345,89 @@ else
     info "Created new config at $config_path"
 fi
 
+eval "$(
+    python3 - "$config_path" <<'PY'
+import configparser
+import shlex
+import sys
+
+config = configparser.RawConfigParser()
+config.read(sys.argv[1])
+
+fields = {
+    "cfg_language": ("telegram_bot", "language"),
+    "cfg_api_token": ("telegram_bot", "api_token"),
+    "cfg_bot_password": ("telegram_bot", "password_for_authentication"),
+    "cfg_allowed_users": ("telegram_bot", "allowed_users"),
+    "cfg_admin_users": ("telegram_bot", "admin_users"),
+    "cfg_notifications_loud": ("telegram_bot", "notifications_loud"),
+    "cfg_notifications_silent": ("telegram_bot", "notifications_silent"),
+    "cfg_openai_model": ("openai", "model"),
+    "cfg_openai_token": ("openai", "token"),
+    "cfg_web_base_url": ("checkmk_web", "base_url"),
+    "cfg_web_automation_user": ("checkmk_web", "automation_user"),
+    "cfg_web_automation_secret": ("checkmk_web", "automation_secret"),
+    "cfg_web_graph_count": ("checkmk_web", "graph_count"),
+}
+
+for variable, (section, key) in fields.items():
+    value = config.get(section, key, fallback="")
+    print(f"{variable}={shlex.quote(value)}")
+PY
+)"
+
+if [ -n "$api_token" ]; then
+    cfg_api_token="$api_token"
+fi
+if [ -n "$bot_password" ]; then
+    cfg_bot_password="$bot_password"
+fi
+
+echo
+echo "Configuration review for $config_path"
+echo "Press Enter to keep existing values. Secrets are never printed."
+echo
+
+language=$(prompt_value "Bot language" "${cfg_language:-}" "en" true)
+api_token=$(prompt_secret_value "Telegram API token" "${cfg_api_token:-}" true)
+bot_password=$(prompt_secret_value "Bot password" "${cfg_bot_password:-}" true)
+allowed_users=$(prompt_value "Allowed Telegram users" "${cfg_allowed_users:-}" "" false)
+admin_users=$(prompt_value "Admin Telegram users" "${cfg_admin_users:-}" "" false)
+notifications_loud=$(prompt_value "Loud notification targets" "${cfg_notifications_loud:-}" "" false)
+notifications_silent=$(prompt_value "Silent notification targets" "${cfg_notifications_silent:-}" "" false)
+openai_model=$(prompt_value "OpenAI model (optional)" "${cfg_openai_model:-}" "gpt-4o-mini" false)
+openai_token=$(prompt_secret_value "OpenAI API token (optional)" "${cfg_openai_token:-}" false)
+
+web_configured=false
+if [ -n "${cfg_web_automation_user:-}" ] || { [ -n "${cfg_web_automation_secret:-}" ] && ! is_placeholder_value "${cfg_web_automation_secret:-}"; }; then
+    web_configured=true
+fi
+
+if [ "$web_configured" = "true" ]; then
+    review_web=$(read_from_tty "Review optional Checkmk Web graph export settings? [Y/n]: ")
+    review_web=${review_web:-Y}
+else
+    review_web=$(read_from_tty "Configure optional Checkmk Web graph export settings now? [y/N]: ")
+    review_web=${review_web:-N}
+fi
+
+web_base_url="${cfg_web_base_url:-http://127.0.0.1/$omd_site}"
+if [ -z "$web_base_url" ] || [[ "$web_base_url" == *"<omd_site>"* ]]; then
+    web_base_url="http://127.0.0.1/$omd_site"
+fi
+web_automation_user="${cfg_web_automation_user:-}"
+web_automation_secret="${cfg_web_automation_secret:-}"
+web_graph_count="${cfg_web_graph_count:-3}"
+
+if [[ "$review_web" =~ ^[Yy]$ ]]; then
+    web_base_url=$(prompt_value "Checkmk Web base URL" "$web_base_url" "http://127.0.0.1/$omd_site" false)
+    web_automation_user=$(prompt_value "Checkmk automation user" "$web_automation_user" "" false)
+    web_automation_secret=$(prompt_secret_value "Checkmk automation secret" "$web_automation_secret" false)
+    web_graph_count=$(prompt_value "Number of graphs to fetch per service" "$web_graph_count" "3" false)
+fi
+
 info "Updating external configuration..."
-python3 - "$config_path" "$omd_site" "$api_token" "$bot_password" "$selected_version" "$state_dir" "$log_dir" "$run_dir" "$socket_path" "$bridge_socket_path" "$notification_queue" "$fallback_queue" <<'PY'
+python3 - "$config_path" "$omd_site" "$api_token" "$bot_password" "$selected_version" "$state_dir" "$log_dir" "$run_dir" "$socket_path" "$bridge_socket_path" "$notification_queue" "$fallback_queue" "$language" "$allowed_users" "$admin_users" "$notifications_loud" "$notifications_silent" "$openai_model" "$openai_token" "$web_base_url" "$web_automation_user" "$web_automation_secret" "$web_graph_count" <<'PY'
 import configparser
 import sys
 from pathlib import Path
@@ -311,6 +445,17 @@ from pathlib import Path
     bridge_socket_path,
     notification_queue,
     fallback_queue,
+    language,
+    allowed_users,
+    admin_users,
+    notifications_loud,
+    notifications_silent,
+    openai_model,
+    openai_token,
+    web_base_url,
+    web_automation_user,
+    web_automation_secret,
+    web_graph_count,
 ) = sys.argv[1:]
 
 path = Path(config_path)
@@ -324,26 +469,25 @@ def ensure(section):
 ensure("telegram_bot")
 ensure("check_mk")
 ensure("paths")
+ensure("checkmk_web")
 
-defaults = {
-    "language": "en",
-    "version": "v0.0.0",
-    "allowed_users": "",
-    "admin_users": "",
-    "notifications_loud": "",
-    "notifications_silent": "",
-}
-for key, value in defaults.items():
-    if not config.has_option("telegram_bot", key):
-        config.set("telegram_bot", key, value)
+config.set("telegram_bot", "language", language or "en")
+config.set("telegram_bot", "allowed_users", allowed_users)
+config.set("telegram_bot", "admin_users", admin_users)
+config.set("telegram_bot", "notifications_loud", notifications_loud)
+config.set("telegram_bot", "notifications_silent", notifications_silent)
 
 current_token = config.get("telegram_bot", "api_token", fallback="")
 if not current_token or current_token == "<api_token>":
     config.set("telegram_bot", "api_token", api_token)
+else:
+    config.set("telegram_bot", "api_token", api_token or current_token)
 
 current_password = config.get("telegram_bot", "password_for_authentication", fallback="")
 if not current_password or current_password == "<password_for_authentication>":
     config.set("telegram_bot", "password_for_authentication", bot_password)
+else:
+    config.set("telegram_bot", "password_for_authentication", bot_password or current_password)
 
 config.set("telegram_bot", "version", version)
 config.set("check_mk", "site", site)
@@ -359,6 +503,25 @@ path_values = {
 }
 for key, value in path_values.items():
     config.set("paths", key, value)
+
+if not web_base_url or "<omd_site>" in web_base_url:
+    web_base_url = f"http://127.0.0.1/{site}"
+
+try:
+    graph_count_int = int(web_graph_count)
+    if graph_count_int < 1:
+        raise ValueError
+except ValueError:
+    graph_count_int = 3
+
+config.set("checkmk_web", "base_url", web_base_url)
+config.set("checkmk_web", "automation_user", web_automation_user)
+config.set("checkmk_web", "automation_secret", web_automation_secret)
+config.set("checkmk_web", "graph_count", str(graph_count_int))
+
+ensure("openai")
+config.set("openai", "model", openai_model or "gpt-4o-mini")
+config.set("openai", "token", openai_token or "YOUR-TOKEN")
 
 if config.has_section("openai"):
     if config.get("openai", "token", fallback="") == "<openai_token>":

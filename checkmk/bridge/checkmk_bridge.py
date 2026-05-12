@@ -9,6 +9,7 @@ and implements a small allowlist of typed operations needed by the app.
 from __future__ import annotations
 
 import base64
+import configparser
 import json
 import os
 import socket
@@ -19,10 +20,12 @@ import time
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from typing import Any
+from urllib import error, parse, request
 
 SITE = "<omd_site>"
 SITE_DIR = Path("/omd/sites") / SITE
 SOCKET_PATH = "<bridge_socket_path>"
+CONFIG_PATH = Path("/etc/checkmk-telegram-plus") / f"{SITE}.ini"
 MAX_BODY_SIZE = 1024 * 1024
 MAX_FIELD_LENGTH = 512
 
@@ -122,16 +125,25 @@ def service_details(params: dict[str, Any]) -> dict[str, Any]:
 
 
 def service_graphs(params: dict[str, Any]) -> list[str]:
-    try:
-        from cmk.notification_plugins.utils import render_cmk_graphs
-    except Exception as exc:
-        raise RuntimeError(
-            "Checkmk graph rendering is unavailable in this site Python "
-            f"environment: {exc}"
-        ) from exc
-
     hostname = clean_name(params.get("hostname"), "hostname")
     service = clean_name(params.get("service"), "service")
+
+    try:
+        return render_graphs_internal(hostname, service)
+    except Exception as internal_exc:
+        try:
+            return fetch_graphs_from_web(hostname, service)
+        except Exception as web_exc:
+            raise RuntimeError(
+                "Could not render Checkmk service graphs. "
+                f"Internal renderer failed: {internal_exc}. "
+                f"Web graph export failed: {web_exc}"
+            ) from web_exc
+
+
+def render_graphs_internal(hostname: str, service: str) -> list[str]:
+    from cmk.notification_plugins.utils import render_cmk_graphs
+
     render_config = {
         "HOSTNAME": hostname,
         "SERVICEDESC": service,
@@ -145,16 +157,141 @@ def service_graphs(params: dict[str, Any]) -> list[str]:
     ]
 
 
+def read_web_config() -> dict[str, str]:
+    parser = configparser.RawConfigParser()
+    parser.read(CONFIG_PATH)
+    if not parser.has_section("checkmk_web"):
+        return {}
+    return {
+        "base_url": parser.get("checkmk_web", "base_url", fallback="").rstrip("/"),
+        "automation_user": parser.get(
+            "checkmk_web", "automation_user", fallback=""
+        ),
+        "automation_secret": parser.get(
+            "checkmk_web", "automation_secret", fallback=""
+        ),
+        "graph_count": parser.get("checkmk_web", "graph_count", fallback="3"),
+    }
+
+
+def fetch_graphs_from_web(hostname: str, service: str) -> list[str]:
+    config = read_web_config()
+    base_url = config.get("base_url", "")
+    username = config.get("automation_user", "")
+    secret = config.get("automation_secret", "")
+    if not base_url or not username or not secret:
+        raise RuntimeError(
+            "checkmk_web.base_url, automation_user and automation_secret are not "
+            f"configured in {CONFIG_PATH}"
+        )
+
+    try:
+        graph_count = max(1, min(int(config.get("graph_count", "3")), 10))
+    except ValueError:
+        graph_count = 3
+
+    graphs = []
+    errors = []
+    for graph_index in range(graph_count):
+        for request_object in graph_image_requests(hostname, service, graph_index):
+            try:
+                graphs.append(
+                    fetch_graph_image(base_url, username, secret, request_object)
+                )
+                break
+            except Exception as exc:
+                errors.append(str(exc))
+        if graph_index == 0 and not graphs:
+            continue
+    if graphs:
+        return graphs
+    raise RuntimeError("; ".join(errors[-4:]) or "no graph images returned")
+
+
+def graph_image_requests(hostname: str, service: str, graph_index: int) -> list[dict[str, Any]]:
+    render_options = {
+        "show_legend": True,
+        "show_title": True,
+        "size": [800, 250],
+    }
+    return [
+        {
+            "specification": {
+                "site": SITE,
+                "host_name": hostname,
+                "service_description": service,
+                "graph_type": "template",
+                "graph_index": graph_index,
+            },
+            "render_options": render_options,
+        },
+        {
+            "specification": [
+                "template",
+                {
+                    "site": SITE,
+                    "host_name": hostname,
+                    "service_description": service,
+                    "graph_index": graph_index,
+                },
+            ],
+            "render_options": render_options,
+        },
+    ]
+
+
+def fetch_graph_image(
+    base_url: str,
+    username: str,
+    secret: str,
+    request_object: dict[str, Any],
+) -> str:
+    query = parse.urlencode(
+        {
+            "_username": username,
+            "_secret": secret,
+            "request": json.dumps(request_object, separators=(",", ":")),
+        }
+    )
+    url = f"{base_url}/check_mk/graph_image.py?{query}"
+    req = request.Request(url, headers={"Accept": "image/png"})
+    try:
+        with request.urlopen(req, timeout=30) as response:
+            content_type = response.headers.get("Content-Type", "")
+            body = response.read()
+    except error.HTTPError as exc:
+        body = exc.read(500).decode("utf-8", "replace")
+        raise RuntimeError(f"graph_image.py returned HTTP {exc.code}: {body}") from exc
+    except error.URLError as exc:
+        raise RuntimeError(f"graph_image.py request failed: {exc.reason}") from exc
+
+    if "image" not in content_type.lower() or not body.startswith(b"\x89PNG"):
+        preview = body[:200].decode("utf-8", "replace")
+        raise RuntimeError(
+            "graph_image.py did not return a PNG image "
+            f"(Content-Type: {content_type}): {preview}"
+        )
+    return base64.b64encode(body).decode("ascii")
+
+
 def run_cmk_check(params: dict[str, Any]) -> dict[str, Any]:
     hostname = clean_name(params.get("hostname"), "hostname")
+    cmk_bin = SITE_DIR / "bin" / "cmk"
+    if not cmk_bin.exists():
+        raise RuntimeError(f"cmk binary not found: {cmk_bin}")
     result = subprocess.run(
-        [str(SITE_DIR / "bin" / "cmk"), "--check", hostname],
+        [str(cmk_bin), "--check", hostname],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
-        timeout=60,
+        timeout=90,
         check=False,
     )
+    if result.returncode != 0:
+        raise RuntimeError(
+            "cmk --check failed with return code "
+            f"{result.returncode}:\n{result.stdout}"
+        )
     return {"returncode": result.returncode, "stdout": result.stdout}
 
 

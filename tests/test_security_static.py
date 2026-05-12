@@ -25,12 +25,45 @@ class SecurityStaticTest(unittest.TestCase):
         self.assertIn("/etc/checkmk-telegram-plus", text)
         self.assertIn("config.ini.bak.", text)
 
+    def test_installer_reviews_existing_config_without_printing_secrets(self):
+        text = (ROOT / "install.sh").read_text(encoding="utf-8")
+        self.assertIn("Configuration review for", text)
+        self.assertIn("Secrets are never printed", text)
+        self.assertIn("press Enter to keep", text)
+        self.assertIn("Configure optional Checkmk Web graph export settings now?", text)
+        self.assertIn("Telegram API token", text)
+        self.assertIn("Bot password", text)
+
+    def test_httpx_is_pinned_for_openai_compatibility(self):
+        text = (ROOT / "resources" / "requirements.txt").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("httpx<0.28", text)
+
+    def test_graphs_have_web_export_fallback(self):
+        bridge = (ROOT / "checkmk" / "bridge" / "checkmk_bridge.py").read_text(
+            encoding="utf-8"
+        )
+        config = (ROOT / "resources" / "config.ini").read_text(encoding="utf-8")
+        self.assertIn("fetch_graphs_from_web", bridge)
+        self.assertIn("graph_image.py", bridge)
+        self.assertIn("[checkmk_web]", config)
+        self.assertIn("automation_secret", config)
+
+    def test_bridge_client_timeout_allows_slow_agent_checks(self):
+        text = (
+            ROOT / "src" / "checkmk_telegram_plus" / "checkmk" / "client.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("timeout: float = 90.0", text)
+        self.assertIn("message = f\"{message}: {error}\"", text)
+
     def test_app_service_runs_as_external_user(self):
         text = (
             ROOT / "resources" / "checkmk-telegram-plus.service"
         ).read_text(encoding="utf-8")
         self.assertIn("PermissionsStartOnly=true", text)
         self.assertIn("ExecStartPre=+/bin/chown root:<app_user>", text)
+        self.assertIn("ExecStartPre=+/bin/chmod 2770 <run_dir>", text)
         self.assertIn("User=<app_user>", text)
         self.assertIn("Environment=PYTHONPATH=<pythonpath>", text)
 

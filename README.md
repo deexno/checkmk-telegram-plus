@@ -31,10 +31,7 @@ This bot is NOT meant to be used in groups.
 
 # The Installation / Update process
 1. Install the bot. The installer fetches the 3 latest GitHub Releases and asks which version should be installed. It also offers a `main` branch option for testing only. <br>
-The installer asks for the following values:<br>
-- omd_site_name (Your OMD Check_MK site which you want to monitor)
-- api_token (You get this token from the BotFather of Telegram)
-- bot_password (This can be a password of your choice, which will be used later to authenticate to the bot)
+The installer reviews the configuration interactively. Existing values in `/etc/checkmk-telegram-plus/<omd_site_name>.ini` are preserved when you press Enter. Secrets are only shown as configured, never printed in clear text. Missing required values such as the Telegram BotFather token and bot password are requested before the service is installed.
 
 The installer uses a split architecture. Only a minimal notification adapter is installed into the CheckMK site. The application, virtual environment and third-party Python dependencies are installed outside CheckMK:
 
@@ -50,6 +47,23 @@ The installer uses a split architecture. Only a minimal notification adapter is 
 
 The external app runs as the dedicated `checkmk-telegram-plus` system user. A small CheckMK bridge runs as the CheckMK site user and exposes only typed local operations for Livestatus, graphs, `cmk --check`, OMD status/start/stop and acknowledgements.
 
+For service graphs on newer CheckMK versions, configure the optional CheckMK Web graph export settings during installation, or edit them later in:
+
+```bash
+omd_site_name=<omd_site_name>
+nano /etc/checkmk-telegram-plus/$omd_site_name.ini
+```
+
+```ini
+[checkmk_web]
+base_url = http://127.0.0.1/<omd_site_name>
+automation_user = automation
+automation_secret = YOUR_AUTOMATION_SECRET
+graph_count = 3
+```
+
+The bot first tries CheckMK's legacy internal graph renderer. If that renderer is not available, it uses the CheckMK Web `graph_image.py` PNG export endpoint with the automation credentials above. Missing graph support will not stop the bot or bridge service.
+
 Existing installations are migrated automatically. Legacy configuration files are backed up before changes are made, and old site-local application files are moved to a `legacy-<timestamp>` directory below `/omd/sites/<omd_site_name>/local/share/checkmk-telegram-plus`.
 
 Recommended one-line installation command:
@@ -59,10 +73,11 @@ curl -fsSL https://raw.githubusercontent.com/deexno/checkmk-telegram-plus/refs/h
 
 If you are already logged in as root, run the same command without `sudo`.
 
-Optional non-interactive installation:
+Optional preseeded installation:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/deexno/checkmk-telegram-plus/refs/heads/main/install.sh | sudo bash -s -- <omd_site_name> <api_token> <bot_password>
 ```
+The installer still opens the configuration review so upgrades can keep or correct existing values safely.
 
 2. Create a rule that exports the notifications using our new Notification Plugin.
 <img src="src/Screenshot_04.png" alt="Telegram Bot" height="auto" width="700" />

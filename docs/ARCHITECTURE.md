@@ -56,6 +56,18 @@ details, graph rendering, `cmk --check`, OMD status/start/stop and service
 acknowledgement. It does not expose a generic shell or arbitrary Livestatus
 query endpoint.
 
+Graph rendering is version tolerant:
+
+1. The bridge first tries Checkmk's legacy internal notification graph renderer,
+   if the installed Checkmk version still exposes it.
+2. If that renderer is unavailable, the bridge falls back to Checkmk Web's
+   `graph_image.py` PNG export endpoint.
+3. The web export requires `[checkmk_web]` settings in
+   `/etc/checkmk-telegram-plus/<site>.ini`: `base_url`, `automation_user` and
+   `automation_secret`.
+4. If neither method is available, only the graph request fails with a clear
+   error message. The bridge service and the bot keep running.
+
 ### External app
 
 The application runs outside the Checkmk site tree:
@@ -133,6 +145,12 @@ Legacy files in the Checkmk site app directory are moved to:
 ```text
 /omd/sites/<site>/local/share/checkmk-telegram-plus/legacy-<timestamp>/
 ```
+
+During installation and upgrades, the installer reviews the functional
+configuration in `/etc/checkmk-telegram-plus/<site>.ini`. Existing values are
+kept when the prompt is left empty. Secrets are displayed only as configured and
+are not printed to the terminal. Telegram token and bot password are required;
+OpenAI and Checkmk Web graph export settings are optional.
 
 Rollback consists of stopping the new service, restoring the legacy files and
 config from those backups, and reinstalling the old service file from the legacy

@@ -79,7 +79,7 @@ omd_site_name=<omd_site_name> # CHANGE <omd_site_name> to the name of your OMD s
 cat /etc/checkmk-telegram-plus/$omd_site_name.ini | grep api_token
 ```
 
-Compare the output with the key you received from the Bot Father. If it is not the same, uninstall and install the bot. The uninstallation is necessary because, for safety reasons, the API key is only set during the first installation.
+Compare the output with the key you received from the Bot Father. If it is not the same, run the installer again. The installer backs up the existing config and lets you replace the Telegram API token during the configuration review without deleting user data.
 
 ## No notifications are sent
 
