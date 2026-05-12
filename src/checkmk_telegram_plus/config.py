@@ -26,6 +26,7 @@ def ensure_external_paths(
     log_dir: str,
     run_dir: str,
     socket_path: str,
+    bridge_socket_path: str,
     fallback_queue_path: str,
 ) -> None:
     parser = configparser.RawConfigParser()
@@ -39,8 +40,8 @@ def ensure_external_paths(
     parser.set("paths", "log_dir", log_dir)
     parser.set("paths", "run_dir", run_dir)
     parser.set("paths", "socket_path", socket_path)
+    parser.set("paths", "bridge_socket", bridge_socket_path)
     parser.set("paths", "notification_queue", f"{state_dir}/notifications.queue")
     parser.set("paths", "fallback_queue", fallback_queue_path)
     with Path(config_path).open("w", encoding="utf-8") as handle:
         parser.write(handle)
-

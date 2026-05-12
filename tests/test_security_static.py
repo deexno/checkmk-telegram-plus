@@ -25,11 +25,28 @@ class SecurityStaticTest(unittest.TestCase):
         self.assertIn("/etc/checkmk-telegram-plus", text)
         self.assertIn("config.ini.bak.", text)
 
-    def test_service_preserves_checkmk_pythonpath(self):
+    def test_app_service_runs_as_external_user(self):
         text = (
             ROOT / "resources" / "checkmk-telegram-plus.service"
         ).read_text(encoding="utf-8")
-        self.assertIn("PYTHONPATH=<pythonpath>:${PYTHONPATH:-}", text)
+        self.assertIn("User=<app_user>", text)
+        self.assertIn("Environment=PYTHONPATH=<pythonpath>", text)
+
+    def test_bot_has_no_direct_checkmk_import_or_command_execution(self):
+        text = (ROOT / "resources" / "telegram_bot.py").read_text(encoding="utf-8")
+        self.assertNotIn("import livestatus", text)
+        self.assertNotIn("cmk.notification_plugins", text)
+        self.assertNotIn("subprocess.run", text)
+        self.assertIn("CheckmkBridgeClient", text)
+        self.assertIn("def is_user_admin", text)
+        self.assertIn("reject_non_admin", text)
+
+    def test_bridge_service_runs_as_site_user(self):
+        text = (
+            ROOT / "resources" / "checkmk-telegram-plus-bridge.service"
+        ).read_text(encoding="utf-8")
+        self.assertIn("<site_python> <bridge_script>", text)
+        self.assertIn("<runuser_path> -l <omd_site>", text)
 
 
 if __name__ == "__main__":

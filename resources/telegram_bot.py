@@ -3,14 +3,12 @@ import configparser
 import html
 import logging
 import os
-import subprocess
 import threading
 import time
 from datetime import datetime
 from pathlib import Path
 
 import fqueue
-import livestatus
 import requests
 from telegram import (
     BotCommand,
@@ -31,7 +29,7 @@ from telegram.ext import (
     filters,
 )
 from translate import Translator
-from cmk.notification_plugins.utils import render_cmk_graphs
+from checkmk_telegram_plus.checkmk.client import CheckmkBridgeClient
 
 # Read configuration file
 config = configparser.RawConfigParser()
@@ -41,6 +39,17 @@ config.read(CONFIG_PATH)
 # Get Open Monitoring Distribution (OMD) site
 omd_site = config["check_mk"]["site"]
 omd_site_dir = os.path.join("/", "omd", "sites", omd_site)
+
+bridge_socket_path = (
+    config.get(
+        "paths",
+        "bridge_socket",
+        fallback=f"/run/checkmk-telegram-plus/{omd_site}-bridge.sock",
+    )
+    if config.has_section("paths")
+    else f"/run/checkmk-telegram-plus/{omd_site}-bridge.sock"
+)
+checkmk = CheckmkBridgeClient(bridge_socket_path)
 
 logger = logging.getLogger(__name__)
 formatter = logging.Formatter("%(asctime)s:%(levelname)s:%(funcName)s:%(message)s")
@@ -93,12 +102,6 @@ home_menu = ReplyKeyboardMarkup(
     one_time_keyboard=True,
     input_field_placeholder="Choose an option",
 )
-
-# Set path of LiveStatus socket
-livestatus_socket_path = f"unix:{omd_site_dir}/tmp/run/live"
-
-# Create LiveStatus connection
-livestatus_connection = livestatus.SingleSiteConnection(livestatus_socket_path)
 
 # Set path of query for notifications
 notify_query_path = (
@@ -294,6 +297,26 @@ def is_user_authenticated(user_id):
         return False
 
 
+def is_user_admin(user_id):
+    config.read(CONFIG_PATH)
+    admin_users = config["telegram_bot"].get("admin_users", "")
+    return str(user_id) in admin_users
+
+
+async def reject_non_admin(update):
+    if not is_user_admin(update.effective_user.id):
+        log_unauthenticated_access(
+            update.effective_user.username,
+            update.message.text if update.message else "admin action",
+        )
+        await update.message.reply_text(
+            translate("THE ADMIN SETTINGS ARE DEACTIVATED FOR YOU!"),
+            reply_markup=home_menu,
+        )
+        return True
+    return False
+
+
 # Method to get the state "details"
 def get_state_details(val):
     if val == 0 or val == "OK" or val == "UP":
@@ -431,17 +454,10 @@ async def get_host_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     # Initialize hosts list
     hosts = []
 
-    # Try to get the data from the livestatus connection & sort them
+    # Try to get the data from the Checkmk bridge & sort them
     try:
-        for host in sorted(
-            livestatus_connection.query_table(
-                "GET hostsbygroup\n"
-                f"Filter: hostgroup_name = {update.message.text}\n"
-                "Columns: name"
-            ),
-            key=lambda d: d[0],
-        ):
-            hosts.append(KeyboardButton(text=str(host[0])))
+        for host in checkmk.list_hosts(update.message.text):
+            hosts.append(KeyboardButton(text=str(host)))
 
         await update.message.reply_text(
             translate("PLEASE TELL ME THE HOSTNAME"),
@@ -473,16 +489,11 @@ async def get_host_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         hostgroups = []
 
         try:
-            # Get the list of hostgroups from livestatus connection
+            # Get the list of hostgroups from the Checkmk bridge
             # and sort them
-            for hostgroup in sorted(
-                livestatus_connection.query_table(
-                    "GET hostgroups\nColumns: name\n",
-                ),
-                key=lambda d: d[0],
-            ):
+            for hostgroup in checkmk.list_hostgroups():
                 # Append each hostgroup to the hostgroups list
-                hostgroups.append(KeyboardButton(text=str(hostgroup[0])))
+                hostgroups.append(KeyboardButton(text=str(hostgroup)))
 
             # Reply to the message with the list of hostgroups in the form
             # a ReplyKeyboardMarkup and prompt the user to select one
@@ -528,18 +539,11 @@ async def get_service_name(
     services = []
 
     try:
-        # Get list of services from livestatus connection and sort
+        # Get list of services from the Checkmk bridge and sort
         # by description
-        for description, state in sorted(
-            livestatus_connection.query_table(
-                "GET services\n"
-                f"Filter: host_name = {update.message.text}\n"
-                "Columns: description state\n"
-            ),
-            key=lambda d: d[0],
-        ):
+        for service in checkmk.list_services(update.message.text):
             # Append the service to services list
-            services.append(f"{update.message.text} / {description}")
+            services.append(f"{update.message.text} / {service['description']}")
 
         # Reply to the message with the list of services in the form
         # a ReplyKeyboardMarkup and prompt the user to select one
@@ -572,11 +576,9 @@ async def get_service_name(
 
 def get_host_status(hostname):
     # Get the status of a host
-    host = livestatus_connection.query_table(
-        f"GET hosts\nFilter: name = {hostname}\nColumns: state"
-    )
+    host_state = checkmk.host_status(hostname)
     state = f"{hostname} IS "
-    state += "ONLINE ✅" if host[0][0] == 0 else "<u><b>OFFLINE</b></u> 🛑"
+    state += "ONLINE ✅" if host_state == 0 else "<u><b>OFFLINE</b></u> 🛑"
 
     return state
 
@@ -610,18 +612,11 @@ async def get_services(
     services = f"<u><b>{update.message.text}:</b></u>\n\n"
 
     try:
-        # Get list of services from livestatus connection and sort
+        # Get list of services from the Checkmk bridge and sort
         # by description
-        for description, state in sorted(
-            livestatus_connection.query_table(
-                "GET services\n"
-                f"Filter: host_name = {update.message.text}\n"
-                "Columns: description state\n"
-            ),
-            key=lambda d: d[0],
-        ):
-            state_emoji, state_text = get_state_details(state)
-            services += f"{state_emoji} {description} - {state_text}\n"
+        for service in checkmk.list_services(update.message.text):
+            state_emoji, state_text = get_state_details(service["state"])
+            services += f"{state_emoji} {service['description']} - {state_text}\n"
 
         # Reply to the message with the list of services in the form
         # a ReplyKeyboardMarkup and prompt the user to select one
@@ -645,23 +640,11 @@ async def get_services(
 
 
 def get_service_details(hostname, servicename):
-    # Get list of services from livestatus connection using filters and
-    # specific columns
-    service = livestatus_connection.query_table(
-        "GET services\n"
-        f"Filter: host_name = {hostname}\n"
-        f"Filter: description = {servicename}\n"
-        "Columns: "
-        "description "
-        "state perf_data "
-        "plugin_output "
-        "long_plugin_output "
-        "last_check "
-    )
+    service = checkmk.service_details(hostname, servicename)
 
     # Get the state details for the service using the state value from the
     # service list
-    state_emoji, state_text = get_state_details(service[0][1])
+    state_emoji, state_text = get_state_details(service["state"])
 
     # Create a details string with the service state, hostname, service name,
     # summary, details, metrics, and info
@@ -669,15 +652,15 @@ def get_service_details(hostname, servicename):
         f"{state_emoji} <u><b>{hostname} / {servicename} - "
         f"{state_text}</b></u>\n\n"
         f"<b>{translate('SUMMARY')}: </b>\n"
-        f"<code><pre>{html.escape(service[0][3])}</pre></code>\n\n"
+        f"<code><pre>{html.escape(service['plugin_output'])}</pre></code>\n\n"
         f"<b>{translate('DETAILS')}: </b>\n"
-        f"<code><pre>{html.escape(service[0][4])}</pre></code>\n\n"
+        f"<code><pre>{html.escape(service['long_plugin_output'])}</pre></code>\n\n"
         f"<b>{translate('METRICS')}: </b>\n"
     )
 
     # Add any available metrics to the details string
-    if len(service[0][2]) > 1:
-        for metric in service[0][2].split(" "):
+    if len(service["perf_data"]) > 1:
+        for metric in service["perf_data"].split(" "):
             if "=" in metric:
                 name, values = metric.split("=")
                 value, warn, crit, min, max = values.split(";")
@@ -688,7 +671,7 @@ def get_service_details(hostname, servicename):
     # Add last check time to the details string
     details += (
         f"\n<b>{translate('INFO')}: </b>\n"
-        f"{translate('Last Check')}: {datetime.fromtimestamp(service[0][5])}"
+        f"{translate('Last Check')}: {datetime.fromtimestamp(service['last_check'])}"
     )
 
     return details
@@ -723,18 +706,10 @@ async def print_service_details(
 
 
 def get_service_graphs(hostname, service):
-    render_config = {
-        "HOSTNAME": hostname,
-        "SERVICEDESC": service,
-        "WHAT": "SERVICE",
-        "OMD_SITE": omd_site,
-        "PARAMETER_GRAPHS_PER_NOTIFICATION": "15" # we might want to configure this at some point, if it changes anything at all...
-    }
-
     # Create a list of InputMediaPhoto objects from the decoded images
     graphs = []
-    for graph in list(render_cmk_graphs(render_config)):
-        graphs.append(InputMediaPhoto(graph.data))
+    for graph in checkmk.service_graphs(hostname, service):
+        graphs.append(InputMediaPhoto(graph))
 
     # Split the graphs into groups of 10 or fewer, since Telegram's API has a
     # limit on the number of media items per message
@@ -805,16 +780,11 @@ async def reschedule_check(
             reply_markup=home_menu,
         )
 
-        # Execute the check via the CMK CLI and save the output in a variable
-        # to output it to the user afterwards.
-        check_result = subprocess.run(
-            [os.path.join(omd_site_dir, "bin", "cmk"), "--check", hostname],
-            stdout=subprocess.PIPE,
-        )
+        check_output = checkmk.run_cmk_check(hostname)
 
         # Return the answer of the check to the user
         await update.message.reply_html(
-            f"{check_result.stdout.decode('utf-8')}\n\n"
+            f"{check_output}\n\n"
             f"{translate('RESCHEDULE CHECK WAS COMPLETED SUCCESSFULLY')}",
             reply_markup=home_menu,
         )
@@ -839,22 +809,10 @@ async def get_host_problems(
     context: ContextTypes.DEFAULT_TYPE,
 ) -> int:
     try:
-        # Query the livestatus connection to get a list of hosts that are in
+        # Query the Checkmk bridge to get a list of hosts that are in
         # a problematic state and belong to the group specified in the
         # user's message. The resulting list is sorted by host name.
-        host_problems_array = sorted(
-            livestatus_connection.query_table(
-                "GET hostsbygroup\n"
-                "Filter: state = 1\n"  # filter for hosts with a state of warn
-                "Filter: state = 2\n"  # filter for hosts with a state of crit
-                "Filter: state = 3\n"  # filter for hosts with a state of unkn
-                "Or: 3\n"  # combine the three filters above with a logical OR
-                f"Filter: hostgroup_name = {update.message.text}\n"
-                "Columns: name state"  # only return the host name and state
-            ),
-            key=lambda d: d[1],
-            reverse=True,
-        )
+        host_problems_array = checkmk.host_problems(update.message.text)
 
         # Create a string to store the host problems and their states.
         # This string is formatted as HTML for rendering purposes.
@@ -865,9 +823,9 @@ async def get_host_problems(
 
         # Loop through the list of hosts and their states, and append each one
         # to the host_problems string.
-        for host, state in host_problems_array:
-            state_emoji, state_text = get_state_details(state)
-            host_problems += f"{state_emoji} {host}\n"
+        for host in host_problems_array:
+            state_emoji, state_text = get_state_details(host["state"])
+            host_problems += f"{state_emoji} {host['hostname']}\n"
 
         # Send the host_problems string as a message reply to the user.
         # The message is formatted as HTML and includes a custom keyboard.
@@ -896,21 +854,9 @@ async def get_service_problems(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> int:
     try:
-        # Get list of services from livestatus connection and sort
+        # Get list of services from the Checkmk bridge and sort
         # by description
-        service_problems_array = sorted(
-            livestatus_connection.query_table(
-                "GET servicesbyhostgroup\n"
-                "Filter: state = 1\n"
-                "Filter: state = 2\n"
-                "Filter: state = 3\n"
-                "Or: 3\n"
-                f"Filter: hostgroup_name = {update.message.text}\n"
-                "Columns: host_name description state\n"
-            ),
-            key=lambda d: d[2],
-            reverse=True,
-        )
+        service_problems_array = checkmk.service_problems(update.message.text)
 
         service_problems = (
             f"<u><b>{translate('SERVICE PROBLEMS')} "
@@ -919,9 +865,12 @@ async def get_service_problems(
 
         # Loop through the service problems array and add each service's
         # status and description to the reply message
-        for host_name, service, state in service_problems_array:
-            state_emoji, state_text = get_state_details(state)
-            service_problems += f"{state_emoji}<b>{host_name}</b>: {service}\n"
+        for service in service_problems_array:
+            state_emoji, state_text = get_state_details(service["state"])
+            service_problems += (
+                f"{state_emoji}<b>{service['hostname']}</b>: "
+                f"{service['description']}\n"
+            )
 
         # Send the reply message as HTML with the home menu as the reply markup
         await update.message.reply_html(
@@ -1399,12 +1348,8 @@ async def get_logs(
 ) -> None:
     try:
         if is_user_authenticated(update.effective_user.id):
-            log_path = os.path.join(omd_site_dir, "var", "log")
-            log_file_path = os.path.join(log_path, "telegram-plus.log")
-
-            log_file = open(log_file_path)
-            logs = html.escape(log_file.read())
-            log_file.close()
+            with open(log_file_path, encoding="utf-8") as log_file:
+                logs = html.escape(log_file.read())
 
             events = translate(
                 "<u><b>HERE ARE THE LAST 25 LOG ENTRIES:</b></u>:\n\n",
@@ -1445,6 +1390,8 @@ async def display_password(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
+    if await reject_non_admin(update):
+        return ConversationHandler.END
     try:
         if is_user_authenticated(update.effective_user.id):
             await update.message.reply_text(
@@ -1493,6 +1440,8 @@ async def change_password(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
+    if await reject_non_admin(update):
+        return ConversationHandler.END
     try:
         update_config(
             "telegram_bot", "password_for_authentication", update.message.text
@@ -1519,6 +1468,8 @@ async def list_users(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
+    if await reject_non_admin(update):
+        return ConversationHandler.END
     try:
         if is_user_authenticated(update.effective_user.id):
             allowed_users = config["telegram_bot"]["allowed_users"]
@@ -1562,6 +1513,8 @@ async def get_user(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> int:
+    if await reject_non_admin(update):
+        return ConversationHandler.END
     try:
         if is_user_authenticated(update.effective_user.id):
             users = []
@@ -1608,6 +1561,8 @@ async def delete_user(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
+    if await reject_non_admin(update):
+        return ConversationHandler.END
     try:
         allowed_users = config["telegram_bot"]["allowed_users"]
         allowed_users = allowed_users.replace(f"{update.message.text},", "")
@@ -1700,16 +1655,14 @@ async def get_omd_status(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> int:
+    if await reject_non_admin(update):
+        return ConversationHandler.END
     try:
-        # Execute the check via the OMD CLI
-        check_result = subprocess.run(
-            [os.path.join(omd_site_dir, "bin", "omd"), "status"],
-            stdout=subprocess.PIPE,
-        )
+        check_output = checkmk.omd("status")
 
         # Return the answer of the check to the user
         await update.message.reply_html(
-            f"<pre>{check_result.stdout.decode('utf-8')}</pre>",
+            f"<pre>{check_output}</pre>",
             reply_markup=home_menu,
         )
 
@@ -1732,6 +1685,8 @@ async def start_omd_services(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> int:
+    if await reject_non_admin(update):
+        return ConversationHandler.END
     try:
         await update.message.reply_html(
             translate(
@@ -1740,15 +1695,11 @@ async def start_omd_services(
             reply_markup=home_menu,
         )
 
-        # Execute the start command via the OMD CLI
-        check_result = subprocess.run(
-            [os.path.join(omd_site_dir, "bin", "omd"), "start"],
-            stdout=subprocess.PIPE,
-        )
+        check_output = checkmk.omd("start")
 
         # Return the answer of the check to the user
         await update.message.reply_html(
-            f"<pre>{check_result.stdout.decode('utf-8')}</pre>",
+            f"<pre>{check_output}</pre>",
             reply_markup=home_menu,
         )
 
@@ -1771,6 +1722,8 @@ async def stop_omd_services(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> int:
+    if await reject_non_admin(update):
+        return ConversationHandler.END
     try:
         await update.message.reply_html(
             translate(
@@ -1779,15 +1732,11 @@ async def stop_omd_services(
             reply_markup=home_menu,
         )
 
-        # Execute the stop command via the OMD CLI
-        check_result = subprocess.run(
-            [os.path.join(omd_site_dir, "bin", "omd"), "stop"],
-            stdout=subprocess.PIPE,
-        )
+        check_output = checkmk.omd("stop")
 
         # Return the answer of the check to the user
         await update.message.reply_html(
-            f"<pre>{check_result.stdout.decode('utf-8')}</pre>",
+            f"<pre>{check_output}</pre>",
             reply_markup=home_menu,
         )
 
@@ -2028,25 +1977,14 @@ async def acknowledge_service_problem(
         await query.answer()
         type, description, hostname = query.data.split(",")
 
-        now = int(time.time())
-        nagios_cmd = os.path.join(omd_site_dir, "tmp", "run", "nagios.cmd")
         user = update.effective_user
         username = user.username
-
-        comment = (
-            "ACKNOWLEDGE_SVC_PROBLEM;"
-            f"{hostname};"
-            f"{description};"
-            "2;"
-            "0;"
-            "0;"
-            f"{username};"
-            "The problem was acknowledged via the Telegram bot by "
-            f"{username} ({user.id})."
+        checkmk.acknowledge_service_problem(
+            hostname=hostname,
+            service=description,
+            username=username,
+            user_id=user.id,
         )
-
-        with open(nagios_cmd, "w") as f:
-            f.write(f"[{now}] {comment}\n")
 
         try:
             await context.bot.send_message(

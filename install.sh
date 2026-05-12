@@ -81,7 +81,7 @@ if [ ! -r /dev/tty ]; then
     error "This installer needs an interactive terminal."
 fi
 
-programs=(curl python3 tar mktemp runuser sed systemctl)
+programs=(curl python3 tar mktemp runuser sed systemctl getent id groupadd useradd usermod)
 
 for program in "${programs[@]}"; do
     if ! command -v "$program" > /dev/null 2>&1; then
@@ -116,6 +116,7 @@ site_share_dir="$omd_site_dir/local/share/checkmk-telegram-plus"
 external_root="/opt/checkmk-telegram-plus"
 app_dir="$external_root/app"
 venv_dir="$external_root/venv"
+app_user="checkmk-telegram-plus"
 config_dir="/etc/checkmk-telegram-plus"
 config_path="$config_dir/$omd_site.ini"
 state_root="/var/lib/checkmk-telegram-plus"
@@ -123,9 +124,11 @@ state_dir="$state_root/$omd_site"
 log_dir="/var/log/checkmk-telegram-plus"
 run_dir="/run/checkmk-telegram-plus"
 socket_path="$run_dir/$omd_site.sock"
+bridge_socket_path="$run_dir/$omd_site-bridge.sock"
 notification_queue="$state_dir/notifications.queue"
 fallback_queue="$state_dir/fallback/notifications.jsonl"
 telegram_plus_service_name="checkmk-telegram-plus-$omd_site.service"
+telegram_plus_bridge_service_name="checkmk-telegram-plus-bridge-$omd_site.service"
 
 if [ ! -d "$omd_site_dir" ]; then
     error "The CheckMK site '$omd_site' does not exist at $omd_site_dir."
@@ -226,7 +229,9 @@ for required_file in \
     "$source_dir/resources/telegram_bot.py" \
     "$source_dir/resources/fqueue.py" \
     "$source_dir/resources/checkmk-telegram-plus.service" \
+    "$source_dir/resources/checkmk-telegram-plus-bridge.service" \
     "$source_dir/checkmk/notifications/telegram_plus_notify_listener" \
+    "$source_dir/checkmk/bridge/checkmk_bridge.py" \
     "$source_dir/src/checkmk_telegram_plus/api/notification_socket.py"
 do
     if [ ! -f "$required_file" ]; then
@@ -244,13 +249,28 @@ pythonpath_sed=$(escape_sed_replacement "$app_dir/src")
 config_path_sed=$(escape_sed_replacement "$config_path")
 run_dir_sed=$(escape_sed_replacement "$run_dir")
 socket_path_sed=$(escape_sed_replacement "$socket_path")
+bridge_socket_path_sed=$(escape_sed_replacement "$bridge_socket_path")
 fallback_queue_sed=$(escape_sed_replacement "$fallback_queue")
 runuser_path_sed=$(escape_sed_replacement "$runuser_path")
+app_user_sed=$(escape_sed_replacement "$app_user")
 
-info "Creating external directories..."
+info "Creating external service user and directories..."
+if ! getent group "$app_user" > /dev/null; then
+    groupadd --system "$app_user"
+fi
+if ! id -u "$app_user" > /dev/null 2>&1; then
+    nologin_shell="/usr/sbin/nologin"
+    if [ ! -x "$nologin_shell" ]; then
+        nologin_shell="/bin/false"
+    fi
+    useradd --system --gid "$app_user" --home-dir /nonexistent --shell "$nologin_shell" "$app_user"
+fi
+usermod -a -G "$app_user" "$omd_site"
 mkdir -p "$app_dir" "$venv_dir" "$config_dir" "$state_dir/fallback" "$log_dir" "$run_dir" "$site_share_dir/backups"
-chown "$omd_site:$omd_site" "$state_root" "$state_dir" "$state_dir/fallback" "$log_dir" "$run_dir"
-chmod 750 "$state_root" "$state_dir" "$state_dir/fallback" "$log_dir" "$run_dir"
+chown "$app_user:$app_user" "$state_root" "$run_dir"
+chown -R "$app_user:$app_user" "$state_dir" "$log_dir"
+chmod 750 "$state_root" "$state_dir" "$state_dir/fallback" "$log_dir"
+chmod 770 "$run_dir"
 
 old_config="$site_share_dir/config.ini"
 if [ -f "$old_config" ]; then
@@ -272,7 +292,7 @@ else
 fi
 
 info "Updating external configuration..."
-python3 - "$config_path" "$omd_site" "$api_token" "$bot_password" "$selected_version" "$state_dir" "$log_dir" "$run_dir" "$socket_path" "$notification_queue" "$fallback_queue" <<'PY'
+python3 - "$config_path" "$omd_site" "$api_token" "$bot_password" "$selected_version" "$state_dir" "$log_dir" "$run_dir" "$socket_path" "$bridge_socket_path" "$notification_queue" "$fallback_queue" <<'PY'
 import configparser
 import sys
 from pathlib import Path
@@ -287,6 +307,7 @@ from pathlib import Path
     log_dir,
     run_dir,
     socket_path,
+    bridge_socket_path,
     notification_queue,
     fallback_queue,
 ) = sys.argv[1:]
@@ -331,6 +352,7 @@ path_values = {
     "log_dir": log_dir,
     "run_dir": run_dir,
     "socket_path": socket_path,
+    "bridge_socket": bridge_socket_path,
     "notification_queue": notification_queue,
     "fallback_queue": fallback_queue,
 }
@@ -345,7 +367,7 @@ with path.open("w", encoding="utf-8") as handle:
     config.write(handle)
 PY
 
-chown root:"$omd_site" "$config_path"
+chown "$app_user:$app_user" "$config_path"
 chmod 640 "$config_path"
 
 info "Installing external app files..."
@@ -366,7 +388,7 @@ chmod -R go-w "$external_root"
 
 info "Creating or updating external Python virtual environment..."
 if [ ! -x "$venv_dir/bin/python" ]; then
-    "$omd_site_dir/bin/python3" -m venv --system-site-packages "$venv_dir" || python3 -m venv "$venv_dir"
+    python3 -m venv "$venv_dir"
 fi
 "$venv_dir/bin/python" -m pip install --upgrade pip
 "$venv_dir/bin/python" -m pip install -r "$source_dir/resources/requirements.txt" --upgrade
@@ -381,12 +403,24 @@ cp "$adapter_tmp" "$notification_plugin_dir/telegram_plus_notify_listener"
 chown "$omd_site:$omd_site" "$notification_plugin_dir/telegram_plus_notify_listener"
 chmod 755 "$notification_plugin_dir/telegram_plus_notify_listener"
 
+info "Installing slim Checkmk bridge..."
+mkdir -p "$site_share_dir/bridge"
+bridge_script="$site_share_dir/bridge/checkmk_bridge.py"
+cp "$source_dir/checkmk/bridge/checkmk_bridge.py" "$bridge_script"
+sed -i "s|<omd_site>|$omd_site_sed|g" "$bridge_script"
+sed -i "s|<bridge_socket_path>|$bridge_socket_path_sed|g" "$bridge_script"
+sed -i "s|<app_user>|$app_user_sed|g" "$bridge_script"
+chown -R "$omd_site:$omd_site" "$site_share_dir/bridge"
+chmod 750 "$site_share_dir/bridge"
+chmod 750 "$bridge_script"
+
 cat > "$site_share_dir/adapter.ini" <<EOF
 [adapter]
 architecture = split
 site = $omd_site
 config = $config_path
 socket = $socket_path
+bridge_socket = $bridge_socket_path
 fallback_queue = $fallback_queue
 installed_version = $selected_version
 installed_at = $timestamp
@@ -401,7 +435,7 @@ shopt -s nullglob
 for item in "$site_share_dir"/*; do
     base=$(basename "$item")
     case "$base" in
-        config.ini|adapter.ini|backups|legacy-*)
+        config.ini|adapter.ini|backups|bridge|legacy-*)
             ;;
         *)
             mv "$item" "$legacy_dir/"
@@ -417,11 +451,11 @@ else
     info "Moved legacy files to $legacy_dir"
 fi
 
-info "Installing systemd service..."
+info "Installing systemd services..."
 service_tmp="$tmp_dir/checkmk-telegram-plus.service"
 cp "$source_dir/resources/checkmk-telegram-plus.service" "$service_tmp"
-sed -i "s|<runuser_path>|$runuser_path_sed|g" "$service_tmp"
 sed -i "s|<omd_site>|$omd_site_sed|g" "$service_tmp"
+sed -i "s|<app_user>|$app_user_sed|g" "$service_tmp"
 sed -i "s|<app_dir>|$app_dir_sed|g" "$service_tmp"
 sed -i "s|<venv_python>|$venv_python_sed|g" "$service_tmp"
 sed -i "s|<pythonpath>|$pythonpath_sed|g" "$service_tmp"
@@ -429,12 +463,28 @@ sed -i "s|<config_path>|$config_path_sed|g" "$service_tmp"
 sed -i "s|<run_dir>|$run_dir_sed|g" "$service_tmp"
 cp "$service_tmp" "/etc/systemd/system/$telegram_plus_service_name"
 
+bridge_service_tmp="$tmp_dir/checkmk-telegram-plus-bridge.service"
+cp "$source_dir/resources/checkmk-telegram-plus-bridge.service" "$bridge_service_tmp"
+sed -i "s|<runuser_path>|$runuser_path_sed|g" "$bridge_service_tmp"
+sed -i "s|<omd_site>|$omd_site_sed|g" "$bridge_service_tmp"
+sed -i "s|<app_user>|$app_user_sed|g" "$bridge_service_tmp"
+sed -i "s|<run_dir>|$run_dir_sed|g" "$bridge_service_tmp"
+sed -i "s|<site_python>|$(escape_sed_replacement "$omd_site_dir/bin/python3")|g" "$bridge_service_tmp"
+sed -i "s|<bridge_script>|$(escape_sed_replacement "$bridge_script")|g" "$bridge_service_tmp"
+cp "$bridge_service_tmp" "/etc/systemd/system/$telegram_plus_bridge_service_name"
+
 info "Starting systemd service..."
 if ! systemctl daemon-reload; then
     error "Failed to reload systemd."
 fi
+if ! systemctl enable "$telegram_plus_bridge_service_name"; then
+    error "Failed to enable systemd service $telegram_plus_bridge_service_name."
+fi
 if ! systemctl enable "$telegram_plus_service_name"; then
     error "Failed to enable systemd service $telegram_plus_service_name."
+fi
+if ! systemctl restart "$telegram_plus_bridge_service_name"; then
+    error "Failed to restart systemd service $telegram_plus_bridge_service_name. Check logs with: journalctl -u $telegram_plus_bridge_service_name"
 fi
 if ! systemctl restart "$telegram_plus_service_name"; then
     error "Failed to restart systemd service $telegram_plus_service_name. Check logs with: journalctl -u $telegram_plus_service_name"
@@ -450,5 +500,6 @@ echo "Config: $config_path"
 echo "State: $state_dir"
 echo "Logs: $log_dir"
 echo "Socket: $socket_path"
+echo "Bridge socket: $bridge_socket_path"
 echo "Rollback data: $site_share_dir/backups and any legacy-* directory"
 echo "Next step: create or keep the CheckMK notification rule as described in the README."

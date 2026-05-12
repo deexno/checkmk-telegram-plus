@@ -45,7 +45,10 @@ The installer uses a split architecture. Only a minimal notification adapter is 
 /var/lib/checkmk-telegram-plus/<omd_site_name>
 /var/log/checkmk-telegram-plus
 /run/checkmk-telegram-plus/<omd_site_name>.sock
+/run/checkmk-telegram-plus/<omd_site_name>-bridge.sock
 ```
+
+The external app runs as the dedicated `checkmk-telegram-plus` system user. A small CheckMK bridge runs as the CheckMK site user and exposes only typed local operations for Livestatus, graphs, `cmk --check`, OMD status/start/stop and acknowledgements.
 
 Existing installations are migrated automatically. Legacy configuration files are backed up before changes are made, and old site-local application files are moved to a `legacy-<timestamp>` directory below `/omd/sites/<omd_site_name>/local/share/checkmk-telegram-plus`.
 

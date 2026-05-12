@@ -30,6 +30,32 @@ If the socket is unavailable, the adapter appends the payload to:
 The adapter does not import Telegram, OpenAI, Flask/FastAPI or other large
 third-party dependencies.
 
+### Checkmk bridge
+
+Checkmk reads, graph rendering and commands are handled by a separate slim
+bridge installed below the Checkmk site:
+
+```text
+/omd/sites/<site>/local/share/checkmk-telegram-plus/bridge/checkmk_bridge.py
+```
+
+The bridge is started as the Checkmk site user by:
+
+```text
+checkmk-telegram-plus-bridge-<site>.service
+```
+
+It exposes a local Unix domain socket:
+
+```text
+/run/checkmk-telegram-plus/<site>-bridge.sock
+```
+
+The bridge allowlists typed operations such as listing hostgroups, service
+details, graph rendering, `cmk --check`, OMD status/start/stop and service
+acknowledgement. It does not expose a generic shell or arbitrary Livestatus
+query endpoint.
+
 ### External app
 
 The application runs outside the Checkmk site tree:
@@ -49,9 +75,11 @@ Configuration, state, logs and runtime sockets are stored separately:
 ```
 
 The current implementation keeps the existing Telegram bot flows intact. The
-systemd service starts the app as the Checkmk site user so existing Livestatus,
-graph rendering and OMD command behavior remains compatible. The third-party
-dependencies are installed into the external venv, not into the Checkmk site.
+systemd service starts the app as the dedicated `checkmk-telegram-plus` system
+user. The external app does not import Checkmk internals and does not execute
+Checkmk commands directly. It communicates with the bridge over the local Unix
+socket. Third-party dependencies are installed into the external venv, not into
+the Checkmk site.
 
 ## Notification Flow
 
@@ -77,6 +105,20 @@ Checkmk notification rule
 Payloads include an `event_id`. The external queue writer uses that ID to avoid
 adding duplicate events when the same payload is delivered more than once.
 
+## Checkmk Command Flow
+
+```text
+Telegram command / button
+  -> external app
+  -> Checkmk bridge Unix socket
+  -> typed allowlisted Checkmk operation
+  -> bridge response
+  -> Telegram response
+```
+
+This keeps Telegram, OpenAI and future web dependencies out of the Checkmk
+runtime while preserving existing bot behavior.
+
 ## Upgrade And Rollback
 
 The installer backs up existing configs before writing:
@@ -95,4 +137,3 @@ Legacy files in the Checkmk site app directory are moved to:
 Rollback consists of stopping the new service, restoring the legacy files and
 config from those backups, and reinstalling the old service file from the legacy
 directory or previous release package.
-

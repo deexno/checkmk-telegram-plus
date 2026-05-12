@@ -1,0 +1,14 @@
+[Unit]
+Description=CheckMK Telegram Plus Bridge Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStartPre=/bin/mkdir -p <run_dir>
+ExecStartPre=/bin/chown <omd_site>:<app_user> <run_dir>
+ExecStart=<runuser_path> -l <omd_site> -c '<site_python> <bridge_script>'
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
