@@ -14,6 +14,7 @@ import json
 import os
 import socket
 import socketserver
+import ssl
 import subprocess
 import sys
 import time
@@ -194,18 +195,50 @@ def fetch_graphs_from_web(hostname: str, service: str) -> list[str]:
     errors = []
     for graph_index in range(graph_count):
         for request_object in graph_image_requests(hostname, service, graph_index):
-            try:
-                graphs.append(
-                    fetch_graph_image(base_url, username, secret, request_object)
-                )
+            for candidate_base_url in graph_base_url_candidates(base_url):
+                try:
+                    graphs.append(
+                        fetch_graph_image(
+                            candidate_base_url, username, secret, request_object
+                        )
+                    )
+                    break
+                except Exception as exc:
+                    errors.append(str(exc))
+                    if not should_retry_graph_fetch_with_http(candidate_base_url, exc):
+                        break
+            if len(graphs) > graph_index:
                 break
-            except Exception as exc:
-                errors.append(str(exc))
         if graph_index == 0 and not graphs:
             continue
     if graphs:
         return graphs
     raise RuntimeError("; ".join(errors[-4:]) or "no graph images returned")
+
+
+def graph_base_url_candidates(base_url: str) -> list[str]:
+    parsed = parse.urlsplit(base_url)
+    if parsed.scheme == "https" and is_loopback_host(parsed.hostname or ""):
+        http_url = parse.urlunsplit(("http", parsed.netloc, parsed.path, "", ""))
+        return [base_url, http_url]
+    return [base_url]
+
+
+def is_loopback_host(hostname: str) -> bool:
+    return hostname.lower() in {"127.0.0.1", "::1", "localhost"}
+
+
+def should_retry_graph_fetch_with_http(base_url: str, exc: Exception) -> bool:
+    parsed = parse.urlsplit(base_url)
+    if parsed.scheme != "https" or not is_loopback_host(parsed.hostname or ""):
+        return False
+    text = str(exc).lower()
+    return (
+        "certificate_verify_failed" in text
+        or "ip address mismatch" in text
+        or "self-signed certificate" in text
+        or isinstance(getattr(exc, "__cause__", None), ssl.SSLCertVerificationError)
+    )
 
 
 def graph_image_requests(hostname: str, service: str, graph_index: int) -> list[dict[str, Any]]:

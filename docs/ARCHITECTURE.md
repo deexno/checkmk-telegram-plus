@@ -65,7 +65,11 @@ Graph rendering is version tolerant:
 3. The web export requires `[checkmk_web]` settings in
    `/etc/checkmk-telegram-plus/<site>.ini`: `base_url`, `automation_user` and
    `automation_secret`.
-4. If neither method is available, only the graph request fails with a clear
+4. The recommended `base_url` is the local HTTP URL
+   `http://127.0.0.1/<site>`. If a loopback HTTPS URL fails certificate
+   verification because the certificate is not valid for `127.0.0.1`,
+   `localhost` or `::1`, the bridge retries the local request over HTTP.
+5. If neither method is available, only the graph request fails with a clear
    error message. The bridge service and the bot keep running.
 
 ### External app

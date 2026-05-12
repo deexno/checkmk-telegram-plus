@@ -47,6 +47,9 @@ class SecurityStaticTest(unittest.TestCase):
         config = (ROOT / "resources" / "config.ini").read_text(encoding="utf-8")
         self.assertIn("fetch_graphs_from_web", bridge)
         self.assertIn("graph_image.py", bridge)
+        self.assertIn("graph_base_url_candidates", bridge)
+        self.assertIn("should_retry_graph_fetch_with_http", bridge)
+        self.assertIn("SSLCertVerificationError", bridge)
         self.assertIn("[checkmk_web]", config)
         self.assertIn("automation_secret", config)
 

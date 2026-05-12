@@ -62,7 +62,7 @@ automation_secret = YOUR_AUTOMATION_SECRET
 graph_count = 3
 ```
 
-The bot first tries CheckMK's legacy internal graph renderer. If that renderer is not available, it uses the CheckMK Web `graph_image.py` PNG export endpoint with the automation credentials above. Missing graph support will not stop the bot or bridge service.
+The local `http://127.0.0.1/<omd_site_name>` URL is recommended for the graph export. The bot first tries CheckMK's legacy internal graph renderer. If that renderer is not available, it uses the CheckMK Web `graph_image.py` PNG export endpoint with the automation credentials above. If a loopback HTTPS URL fails because the certificate is not valid for `127.0.0.1` or `localhost`, the bridge retries the same local request over HTTP. Missing graph support will not stop the bot or bridge service.
 
 Existing installations are migrated automatically. Legacy configuration files are backed up before changes are made, and old site-local application files are moved to a `legacy-<timestamp>` directory below `/omd/sites/<omd_site_name>/local/share/checkmk-telegram-plus`.
 
