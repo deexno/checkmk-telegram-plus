@@ -31,17 +31,22 @@ This bot is NOT meant to be used in groups.
 
 # The Installation / Update process
 1. Install the bot. The installer fetches the 3 latest GitHub Releases and asks which version should be installed. It also offers a `main` branch option for testing only. <br>
-Replace the variables in <> with your respective information.<br>
+The installer asks for the following values:<br>
 - omd_site_name (Your OMD Check_MK site which you want to monitor)
 - api_token (You get this token from the BotFather of Telegram)
 - bot_password (This can be a password of your choice, which will be used later to authenticate to the bot)
 
 Recommended one-line installation command:
 ```bash
-tmp=$(mktemp) && latest=$(curl -fsSL https://api.github.com/repos/deexno/checkmk-telegram-plus/releases/latest | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])') && curl -fsSL "https://raw.githubusercontent.com/deexno/checkmk-telegram-plus/${latest}/install.sh" -o "$tmp" && sudo bash "$tmp" <omd_site_name> <api_token> <bot_password>; rm -f "$tmp"
+curl -fsSL https://github.com/deexno/checkmk-telegram-plus/releases/latest/download/install.sh | sudo bash
 ```
 
 If you are already logged in as root, run the same command without `sudo`.
+
+Optional non-interactive installation:
+```bash
+curl -fsSL https://github.com/deexno/checkmk-telegram-plus/releases/latest/download/install.sh | sudo bash -s -- <omd_site_name> <api_token> <bot_password>
+```
 
 2. Create a rule that exports the notifications using our new Notification Plugin.
 <img src="src/Screenshot_04.png" alt="Telegram Bot" height="auto" width="700" />

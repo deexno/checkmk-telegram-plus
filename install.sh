@@ -21,14 +21,29 @@ escape_sed_replacement() {
 usage() {
     cat <<EOF
 Usage:
-  sudo bash install.sh <omd_site_name> <api_token> <bot_password>
+  sudo bash install.sh
 
-Example:
+Optional non-interactive usage:
   sudo bash install.sh mysite 123456:ABC-DEF mySecretPassword
 
-The installer will fetch the 3 latest GitHub Releases and ask which version
-should be installed. A branch install option is available for testing only.
+The installer asks for the CheckMK site name, Telegram API token, bot password,
+and version to install. A branch install option is available for testing only.
 EOF
+}
+
+read_from_tty() {
+    local prompt=$1
+    local value
+    read -r -p "$prompt" value < /dev/tty
+    printf '%s' "$value"
+}
+
+read_secret_from_tty() {
+    local prompt=$1
+    local value
+    read -r -s -p "$prompt" value < /dev/tty
+    echo > /dev/tty
+    printf '%s' "$value"
 }
 
 cleanup() {
@@ -48,23 +63,18 @@ if [ "$EUID" -ne 0 ]; then
     error "Please run this installer as root, for example with sudo."
 fi
 
-if [ "$#" -ne 3 ]; then
+if [ "$#" -gt 3 ]; then
     usage
-    error "Expected exactly 3 arguments: <omd_site_name> <api_token> <bot_password>."
+    error "Too many arguments."
 fi
 
 if [ "$(uname -s)" != "Linux" ]; then
     error "Unsupported system. This installer currently supports Linux systems with systemd."
 fi
 
-omd_site=$1
-api_token=$2
-bot_password=$3
-
-omd_site_dir="/omd/sites/$omd_site"
-telegram_plus_dir="$omd_site_dir/local/share/checkmk-telegram-plus"
-telegram_plus_service_name="checkmk-telegram-plus-$omd_site.service"
-notification_plugin_dir="$omd_site_dir/local/share/check_mk/notifications"
+if [ ! -r /dev/tty ]; then
+    error "This installer needs an interactive terminal."
+fi
 
 programs=(curl python3 tar mktemp runuser pip3 sed systemctl)
 
@@ -74,16 +84,37 @@ for program in "${programs[@]}"; do
     fi
 done
 
+echo
+echo "CheckMK Telegram Plus installer"
+echo
+
+omd_site=${1:-}
+api_token=${2:-}
+bot_password=${3:-}
+
+while [ -z "$omd_site" ]; do
+    omd_site=$(read_from_tty "CheckMK site name: ")
+done
+
+while [ -z "$api_token" ]; do
+    api_token=$(read_secret_from_tty "Telegram API token: ")
+done
+
+while [ -z "$bot_password" ]; do
+    bot_password=$(read_secret_from_tty "Bot password: ")
+done
+
+omd_site_dir="/omd/sites/$omd_site"
+telegram_plus_dir="$omd_site_dir/local/share/checkmk-telegram-plus"
+telegram_plus_service_name="checkmk-telegram-plus-$omd_site.service"
+notification_plugin_dir="$omd_site_dir/local/share/check_mk/notifications"
+
 if [ ! -d "$omd_site_dir" ]; then
     error "The CheckMK site '$omd_site' does not exist at $omd_site_dir."
 fi
 
 if [ ! -d "$notification_plugin_dir" ]; then
     error "The CheckMK notification plugin directory does not exist: $notification_plugin_dir."
-fi
-
-if [ ! -t 0 ]; then
-    error "This installer needs an interactive terminal so you can choose a release."
 fi
 
 tmp_dir=$(mktemp -d)
@@ -142,7 +173,7 @@ printf "  %d) %s branch (testing only)\n" "$branch_choice" "$DEFAULT_BRANCH"
 echo
 
 while true; do
-    read -r -p "Choose the version to install [1-$branch_choice]: " choice
+    choice=$(read_from_tty "Choose the version to install [1-$branch_choice]: ")
     if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#releases[@]}" ]; then
         selected_release=${releases[$((choice - 1))]}
         selected_tag=${selected_release%%$'\t'*}
