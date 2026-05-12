@@ -61,20 +61,23 @@ Graph rendering is version tolerant:
 1. The bridge first tries Checkmk's legacy internal notification graph renderer,
    if the installed Checkmk version still exposes it.
 2. If that renderer is unavailable, the bridge falls back to Checkmk Web's
-   `graph_image.py` PNG export endpoint.
+   notification graph endpoint `ajax_graph_images.py`.
 3. The web export requires `[checkmk_web]` settings in
    `/etc/checkmk-telegram-plus/<site>.ini`: `base_url`, `automation_user` and
    `automation_secret`. The bridge uses HTTP auth headers by default so secrets
    are not embedded in URLs. Legacy URL authentication can be enabled explicitly
    with `allow_legacy_url_auth = yes` for old Checkmk installations if needed.
-4. The recommended `base_url` is the local HTTP URL
+4. If the notification graph endpoint is unavailable or rejected by the Checkmk
+   version, the bridge tries the public `graph_image.py` PNG export endpoint
+   with multiple known request formats.
+5. The recommended `base_url` is the local HTTP URL
    `http://127.0.0.1/<site>`. If a loopback HTTPS URL fails certificate
    verification because the certificate is not valid for `127.0.0.1`,
    `localhost` or `::1`, the bridge retries the local request over HTTP. If
    the local web server redirects that HTTP request back to HTTPS, the bridge
    retries loopback HTTPS without certificate verification as a last resort.
    This relaxed TLS fallback is never used for non-loopback hosts.
-5. If neither method is available, only the graph request fails with a clear
+6. If neither method is available, only the graph request fails with a clear
    error message. The bridge service and the bot keep running.
 
 ### External app

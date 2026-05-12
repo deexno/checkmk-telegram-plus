@@ -46,6 +46,8 @@ class SecurityStaticTest(unittest.TestCase):
         )
         config = (ROOT / "resources" / "config.ini").read_text(encoding="utf-8")
         self.assertIn("fetch_graphs_from_web", bridge)
+        self.assertIn("fetch_graphs_from_ajax", bridge)
+        self.assertIn("ajax_graph_images.py", bridge)
         self.assertIn("graph_image.py", bridge)
         self.assertIn("graph_fetch_attempts", bridge)
         self.assertIn("should_retry_graph_fetch", bridge)

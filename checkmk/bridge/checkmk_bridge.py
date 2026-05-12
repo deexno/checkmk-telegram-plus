@@ -133,13 +133,59 @@ def service_graphs(params: dict[str, Any]) -> list[str]:
         return render_graphs_internal(hostname, service)
     except Exception as internal_exc:
         try:
-            return fetch_graphs_from_web(hostname, service)
-        except Exception as web_exc:
-            raise RuntimeError(
-                "Could not render Checkmk service graphs. "
-                f"Internal renderer failed: {internal_exc}. "
-                f"Web graph export failed: {web_exc}"
-            ) from web_exc
+            return fetch_graphs_from_ajax(hostname, service)
+        except Exception as ajax_exc:
+            try:
+                return fetch_graphs_from_web(hostname, service)
+            except Exception as web_exc:
+                raise RuntimeError(
+                    "Could not render Checkmk service graphs. "
+                    f"Internal renderer failed: {internal_exc}. "
+                    f"Notification graph endpoint failed: {ajax_exc}. "
+                    f"Web graph export failed: {web_exc}"
+                ) from web_exc
+
+
+def fetch_graphs_from_ajax(hostname: str, service: str) -> list[str]:
+    config = read_web_config()
+    base_url = config.get("base_url", "")
+    username = config.get("automation_user", "")
+    secret = config.get("automation_secret", "")
+    if not base_url:
+        raise RuntimeError(f"checkmk_web.base_url is not configured in {CONFIG_PATH}")
+
+    try:
+        graph_count = max(1, min(int(config.get("graph_count", "3")), 10))
+    except ValueError:
+        graph_count = 3
+
+    errors = []
+    for candidate_base_url, verify_tls in graph_fetch_attempts(base_url):
+        for auth_method in graph_auth_methods(
+            config.get("allow_legacy_url_auth", "").lower()
+            in {"1", "true", "yes", "on"}
+        ):
+            if auth_method != "none" and (not username or not secret):
+                continue
+            try:
+                graphs = fetch_ajax_graph_images(
+                    candidate_base_url,
+                    username,
+                    secret,
+                    hostname,
+                    service,
+                    graph_count,
+                    verify_tls=verify_tls,
+                    auth_method=auth_method,
+                )
+                if graphs:
+                    return graphs
+                errors.append("ajax_graph_images.py returned no graphs")
+            except Exception as exc:
+                errors.append(str(exc))
+                if not should_try_next_graph_auth_method(exc):
+                    break
+    raise RuntimeError("; ".join(errors[-4:]) or "no graph images returned")
 
 
 def render_graphs_internal(hostname: str, service: str) -> list[str]:
@@ -325,6 +371,52 @@ def graph_image_requests(hostname: str, service: str, graph_index: int) -> list[
     ]
 
 
+def fetch_ajax_graph_images(
+    base_url: str,
+    username: str,
+    secret: str,
+    hostname: str,
+    service: str,
+    graph_count: int,
+    *,
+    verify_tls: bool,
+    auth_method: str,
+) -> list[str]:
+    query = parse.urlencode(
+        {
+            "site": SITE,
+            "host": hostname,
+            "service": service,
+            "num_graphs": str(graph_count),
+        }
+    )
+    url = f"{base_url}/check_mk/ajax_graph_images.py?{query}"
+    headers = {"Accept": "application/json"}
+    add_auth_headers(headers, username, secret, auth_method)
+    req = request.Request(url, headers=headers)
+    body, content_type = open_graph_url(
+        req, base_url, verify_tls=verify_tls, auth_method=auth_method
+    )
+    if "json" not in content_type.lower():
+        raise RuntimeError(
+            "ajax_graph_images.py did not return JSON using "
+            f"{auth_method} auth (Content-Type: {content_type}): "
+            f"{short_html_error(body.decode('utf-8', 'replace'))}"
+        )
+    try:
+        payload = json.loads(body.decode("utf-8"))
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"ajax_graph_images.py returned invalid JSON: {exc}") from exc
+    if not isinstance(payload, list):
+        raise RuntimeError(
+            f"ajax_graph_images.py returned unexpected payload: {type(payload).__name__}"
+        )
+    graphs = [item for item in payload if isinstance(item, str) and item]
+    if not graphs:
+        raise RuntimeError("ajax_graph_images.py returned no graph images")
+    return graphs
+
+
 def fetch_graph_image(
     base_url: str,
     username: str,
@@ -341,6 +433,26 @@ def fetch_graph_image(
     query = parse.urlencode(query_values)
     url = f"{base_url}/check_mk/graph_image.py?{query}"
     headers = {"Accept": "image/png"}
+    add_auth_headers(headers, username, secret, auth_method)
+    req = request.Request(url, headers=headers)
+    body, content_type = open_graph_url(
+        req, base_url, verify_tls=verify_tls, auth_method=auth_method
+    )
+    if "image" not in content_type.lower() or not body.startswith(b"\x89PNG"):
+        preview = short_html_error(body.decode("utf-8", "replace"))
+        raise RuntimeError(
+            f"graph_image.py did not return a PNG image using {auth_method} auth "
+            f"(Content-Type: {content_type}): {preview}"
+        )
+    return base64.b64encode(body).decode("ascii")
+
+
+def add_auth_headers(
+    headers: dict[str, str],
+    username: str,
+    secret: str,
+    auth_method: str,
+) -> None:
     if auth_method == "basic":
         token = base64.b64encode(f"{username}:{secret}".encode("utf-8")).decode(
             "ascii"
@@ -348,7 +460,15 @@ def fetch_graph_image(
         headers["Authorization"] = f"Basic {token}"
     elif auth_method == "bearer":
         headers["Authorization"] = f"Bearer {username} {secret}"
-    req = request.Request(url, headers=headers)
+
+
+def open_graph_url(
+    req: request.Request,
+    base_url: str,
+    *,
+    verify_tls: bool,
+    auth_method: str,
+) -> tuple[bytes, str]:
     context = None
     if parse.urlsplit(base_url).scheme == "https" and not verify_tls:
         context = ssl._create_unverified_context()
@@ -359,23 +479,18 @@ def fetch_graph_image(
     except error.HTTPError as exc:
         body = exc.read(500).decode("utf-8", "replace")
         raise RuntimeError(
-            f"graph_image.py returned HTTP {exc.code} using {auth_method} auth: "
+            f"{Path(parse.urlsplit(req.full_url).path).name} returned HTTP "
+            f"{exc.code} using {auth_method} auth: "
             f"{short_html_error(body)}"
         ) from exc
     except error.URLError as exc:
         verification = " without TLS verification" if not verify_tls else ""
         raise RuntimeError(
-            f"graph_image.py request failed using {auth_method} auth"
+            f"{Path(parse.urlsplit(req.full_url).path).name} request failed "
+            f"using {auth_method} auth"
             f"{verification}: {exc.reason}"
         ) from exc
-
-    if "image" not in content_type.lower() or not body.startswith(b"\x89PNG"):
-        preview = short_html_error(body.decode("utf-8", "replace"))
-        raise RuntimeError(
-            f"graph_image.py did not return a PNG image using {auth_method} auth "
-            f"(Content-Type: {content_type}): {preview}"
-        )
-    return base64.b64encode(body).decode("ascii")
+    return body, content_type
 
 
 def short_html_error(text: str) -> str:
