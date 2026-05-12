@@ -442,6 +442,7 @@ fi
 info "Updating external configuration..."
 python3 - "$config_path" "$omd_site" "$api_token" "$bot_password" "$selected_version" "$state_dir" "$log_dir" "$run_dir" "$socket_path" "$bridge_socket_path" "$notification_queue" "$fallback_queue" "$language" "$allowed_users" "$admin_users" "$notifications_loud" "$notifications_silent" "$openai_model" "$openai_token" "$web_base_url" "$web_automation_user" "$web_automation_secret" "$web_graph_count" "$web_allow_legacy_url_auth" <<'PY'
 import configparser
+import secrets
 import sys
 from pathlib import Path
 
@@ -537,6 +538,13 @@ config.set("checkmk_web", "allow_legacy_url_auth", web_allow_legacy_url_auth or 
 
 config.set("web", "host", config.get("web", "host", fallback="127.0.0.1"))
 config.set("web", "port", config.get("web", "port", fallback="8183"))
+current_web_admin_password = config.get("web", "admin_password", fallback="")
+if (
+    not current_web_admin_password
+    or current_web_admin_password == "<admin_password>"
+):
+    current_web_admin_password = secrets.token_urlsafe(32)
+config.set("web", "admin_password", current_web_admin_password)
 
 ensure("openai")
 config.set("openai", "model", openai_model or "gpt-4o-mini")

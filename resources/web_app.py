@@ -4,6 +4,7 @@ import hmac
 import html
 import os
 import secrets
+from datetime import timedelta
 from functools import wraps
 from pathlib import Path
 
@@ -44,6 +45,11 @@ app = Flask(__name__)
 password = config.get("telegram_bot", "password_for_authentication", fallback="")
 secret_seed = os.environ.get("CHECKMK_TELEGRAM_PLUS_WEB_SECRET") or f"{password}:{CONFIG_PATH}"
 app.secret_key = hashlib.sha256(secret_seed.encode("utf-8")).hexdigest()
+app.permanent_session_lifetime = timedelta(days=365)
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+)
 
 
 def web_setting(key: str, default: str) -> str:
@@ -62,6 +68,28 @@ def require_login(view):
     return wrapper
 
 
+def require_admin(view):
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        if not session.get("authenticated"):
+            return redirect(url_for("login", next=request.full_path))
+        if not session.get("admin_authenticated"):
+            return redirect(url_for("admin_login", next=request.full_path))
+        return view(*args, **kwargs)
+
+    return wrapper
+
+
+def configured_web_admin_password() -> str:
+    config.read(CONFIG_PATH)
+    if not config.has_section("web"):
+        return ""
+    value = config.get("web", "admin_password", fallback="").strip()
+    if value.startswith("<") and value.endswith(">"):
+        return ""
+    return value
+
+
 def csrf_token() -> str:
     token = session.get("csrf_token")
     if not token:
@@ -76,6 +104,7 @@ def inject_globals():
         "site": omd_site,
         "csrf_token": csrf_token,
         "is_authenticated": bool(session.get("authenticated")),
+        "is_web_admin": bool(session.get("admin_authenticated")),
     }
 
 
@@ -98,6 +127,25 @@ def state_badge(state):
     return "dark", str(state)
 
 
+def host_card(hostname, state, service_problem_count=0):
+    css, text = state_badge(state)
+    problem_count = int(service_problem_count or 0)
+    has_problem = str(state) not in {"0", "OK", "UP"} or problem_count > 0
+    if has_problem:
+        summary = "Host-Problem" if problem_count == 0 else f"{problem_count} Service-Problem(e)"
+    else:
+        summary = "Online, keine bekannten Probleme"
+    return {
+        "hostname": hostname,
+        "state": state,
+        "badge_css": css,
+        "badge_text": text,
+        "service_problem_count": problem_count,
+        "has_problem": has_problem,
+        "summary": summary,
+    }
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -108,6 +156,7 @@ def login():
             request.form.get("password", ""), configured_password
         ):
             session.clear()
+            session.permanent = True
             session["authenticated"] = True
             session["csrf_token"] = secrets.token_urlsafe(32)
             storage.add_audit(
@@ -122,7 +171,48 @@ def login():
             action="web_login_failed",
             details=request.remote_addr or "",
         )
-    return render_template("login.html")
+    return render_template(
+        "login.html",
+        title="Control Center",
+        lead="Melde dich mit dem Bot-Passwort an, um Monitoring und Alerts zu öffnen.",
+        field_label="Bot-Passwort",
+        button_label="Einloggen",
+    )
+
+
+@app.route("/admin/login", methods=["GET", "POST"])
+@require_login
+def admin_login():
+    if request.method == "POST":
+        admin_password = configured_web_admin_password()
+        if admin_password and hmac.compare_digest(
+            request.form.get("password", ""), admin_password
+        ):
+            session.permanent = True
+            session["admin_authenticated"] = True
+            session["csrf_token"] = secrets.token_urlsafe(32)
+            storage.add_audit(
+                actor_type="web",
+                action="web_admin_login",
+                details=request.remote_addr or "",
+            )
+            return redirect(request.args.get("next") or url_for("admin_users"))
+        flash(
+            "Admin-Login fehlgeschlagen. Admins können das Web-Admin-Passwort im Telegram-Admin-Menü anfordern.",
+            "danger",
+        )
+        storage.add_audit(
+            actor_type="web",
+            action="web_admin_login_failed",
+            details=request.remote_addr or "",
+        )
+    return render_template(
+        "login.html",
+        title="Admin Login",
+        lead="Für Benutzerverwaltung, Audit und Config ist das separate Web-Admin-Passwort nötig.",
+        field_label="Web-Admin-Passwort",
+        button_label="Admin entsperren",
+    )
 
 
 @app.route("/logout", methods=["POST"])
@@ -153,6 +243,7 @@ def dashboard():
 def monitoring():
     hostgroups = []
     hosts = []
+    host_cards = []
     services = []
     selected_hostgroup = request.values.get("hostgroup", "")
     selected_host = request.values.get("host", "")
@@ -165,6 +256,8 @@ def monitoring():
         hostgroups = checkmk.list_hostgroups()
         if selected_hostgroup:
             hosts = checkmk.list_hosts(selected_hostgroup)
+            for hostname in hosts:
+                host_cards.append(host_card(hostname, checkmk.host_status(hostname)))
         if selected_host:
             host_status = checkmk.host_status(selected_host)
             services = checkmk.list_services(selected_host)
@@ -177,6 +270,7 @@ def monitoring():
         "monitoring.html",
         hostgroups=hostgroups,
         hosts=hosts,
+        host_cards=host_cards,
         services=services,
         selected_hostgroup=selected_hostgroup,
         selected_host=selected_host,
@@ -192,6 +286,8 @@ def monitoring():
 @require_login
 def problems():
     hostgroups = []
+    hosts = []
+    host_cards = []
     host_problems = []
     service_problems = []
     selected_hostgroup = request.args.get("hostgroup", "")
@@ -199,13 +295,34 @@ def problems():
     try:
         hostgroups = checkmk.list_hostgroups()
         if selected_hostgroup:
+            hosts = checkmk.list_hosts(selected_hostgroup)
             host_problems = checkmk.host_problems(selected_hostgroup)
             service_problems = checkmk.service_problems(selected_hostgroup)
+            service_problem_counts = {}
+            for service in service_problems:
+                hostname = service.get("hostname", "")
+                service_problem_counts[hostname] = service_problem_counts.get(hostname, 0) + 1
+            host_problem_states = {
+                host.get("hostname"): host.get("state") for host in host_problems
+            }
+            for hostname in hosts:
+                state = host_problem_states.get(hostname)
+                if state is None:
+                    state = checkmk.host_status(hostname)
+                host_cards.append(
+                    host_card(
+                        hostname,
+                        state,
+                        service_problem_counts.get(hostname, 0),
+                    )
+                )
     except Exception as exc:
         error = str(exc)
     return render_template(
         "problems.html",
         hostgroups=hostgroups,
+        hosts=hosts,
+        host_cards=host_cards,
         selected_hostgroup=selected_hostgroup,
         host_problems=host_problems,
         service_problems=service_problems,
@@ -215,7 +332,7 @@ def problems():
 
 
 @app.route("/admin/users", methods=["GET", "POST"])
-@require_login
+@require_admin
 def admin_users():
     if request.method == "POST":
         validate_csrf()
@@ -242,22 +359,28 @@ def admin_users():
 @require_login
 def admin_notifications():
     event_id = request.args.get("event_id", "")
+    notifications = storage.recent_notifications(100)
+    if not event_id and notifications:
+        event_id = notifications[0]["event_id"]
+    selected_event = storage.notification_event(event_id) if event_id else None
     return render_template(
         "admin_notifications.html",
-        notifications=storage.recent_notifications(100),
+        notifications=notifications,
+        selected_event=selected_event,
         deliveries=storage.notification_deliveries(event_id) if event_id else [],
+        actions=storage.audit_for_target(event_id) if event_id else [],
         selected_event_id=event_id,
     )
 
 
 @app.route("/admin/audit")
-@require_login
+@require_admin
 def admin_audit():
     return render_template("admin_audit.html", events=storage.recent_audit(150))
 
 
 @app.route("/admin/config")
-@require_login
+@require_admin
 def admin_config():
     safe_config = {}
     for section in config.sections():

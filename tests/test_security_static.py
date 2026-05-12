@@ -90,6 +90,20 @@ class SecurityStaticTest(unittest.TestCase):
         self.assertIn("CheckmkBridgeClient", text)
         self.assertIn("def is_user_admin", text)
         self.assertIn("reject_non_admin", text)
+        self.assertIn("def ensure_web_admin_password", text)
+        self.assertIn("🔑 GET WEB ADMIN PASSWORD", text)
+
+    def test_web_admin_routes_require_second_password(self):
+        text = (ROOT / "resources" / "web_app.py").read_text(encoding="utf-8")
+        config = (ROOT / "resources" / "config.ini").read_text(encoding="utf-8")
+        self.assertIn("timedelta(days=365)", text)
+        self.assertIn("def require_admin", text)
+        self.assertIn('@app.route("/admin/login"', text)
+        self.assertIn("configured_web_admin_password", text)
+        self.assertIn("@require_admin\ndef admin_users", text)
+        self.assertIn("@require_admin\ndef admin_audit", text)
+        self.assertIn("@require_admin\ndef admin_config", text)
+        self.assertIn("admin_password =", config)
 
     def test_bridge_service_runs_as_site_user(self):
         text = (

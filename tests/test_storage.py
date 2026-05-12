@@ -63,6 +63,37 @@ class StorageTest(unittest.TestCase):
                 storage.notification_deliveries("evt-1")[0]["telegram_message_id"],
                 42,
             )
+            self.assertEqual(
+                storage.notification_event_id_for_delivery(1001, 42),
+                "evt-1",
+            )
+
+    def test_reads_notification_event_and_targeted_audit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            storage = AppStorage(Path(tmp) / "state.sqlite3")
+            storage.record_notification_event(
+                event_id="evt-2",
+                notification_type="notifications_loud",
+                ip_address="192.0.2.2",
+                hostname="host2",
+                hostgroup="linux",
+                service_description="Interface 1",
+                from_state="OK",
+                to_state="WARN",
+                output="link degraded",
+                raw_event="raw",
+            )
+            storage.add_audit(
+                actor_type="telegram",
+                actor_id="1001",
+                actor_name="alice",
+                action="recheck_requested",
+                target="evt-2",
+                details="host=host2 service=Interface 1",
+            )
+
+            self.assertEqual(storage.notification_event("evt-2")["hostname"], "host2")
+            self.assertEqual(storage.audit_for_target("evt-2")[0]["actor_name"], "alice")
 
 
 if __name__ == "__main__":

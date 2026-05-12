@@ -3,6 +3,7 @@ import configparser
 import html
 import logging
 import os
+import secrets
 import threading
 import time
 from datetime import datetime
@@ -288,6 +289,29 @@ def log_unauthenticated_access(username, command):
     )
 
 
+def audit_callback_action(update, action, hostname="", description="", details=""):
+    user = update.effective_user
+    query = update.callback_query
+    message_id = getattr(getattr(query, "message", None), "message_id", None)
+    event_id = storage.notification_event_id_for_delivery(int(user.id), message_id)
+    target = event_id or f"{hostname}/{description}".strip("/")
+    detail_parts = [
+        f"host={hostname}" if hostname else "",
+        f"service={description}" if description else "",
+        f"telegram_message_id={message_id}" if message_id else "",
+        details,
+    ]
+    storage.add_audit(
+        actor_type="telegram",
+        actor_id=str(user.id),
+        actor_name=user.username or "",
+        action=action,
+        target=target,
+        details=" ".join(part for part in detail_parts if part),
+    )
+    return event_id
+
+
 # Method to check if a user is authenticated
 def is_user_authenticated(user_id):
     return storage.is_user_authenticated(int(user_id))
@@ -331,10 +355,23 @@ def get_state_details(val):
 
 # Method to get the state "details"
 def update_config(section, key, value):
+    if not config.has_section(section):
+        config.add_section(section)
     config.set(section, key, value)
 
-    with open(CONFIG_PATH, "w") as configfile:
+    with open(CONFIG_PATH, "w", encoding="utf-8") as configfile:
         config.write(configfile)
+
+
+def ensure_web_admin_password():
+    config.read(CONFIG_PATH)
+    if not config.has_section("web"):
+        config.add_section("web")
+    password = config.get("web", "admin_password", fallback="").strip()
+    if not password or (password.startswith("<") and password.endswith(">")):
+        password = secrets.token_urlsafe(32)
+        update_config("web", "admin_password", password)
+    return password
 
 
 # Method to shorten the code and make translation easier
@@ -1088,8 +1125,15 @@ async def recheck(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             # Parse the data from the inline button callback query
             query = update.callback_query
             await query.answer()
-            type, description, hostname, recheck_id = query.data.split(",")
+            type, description, hostname, recheck_id = query.data.split(",", 3)
             recheck_id = int(recheck_id) + 1
+            audit_callback_action(
+                update,
+                "recheck_requested",
+                hostname=hostname,
+                description=description,
+                details=f"recheck_id={recheck_id}",
+            )
 
             # Call a function to get the status of the server or service
             message = (
@@ -1127,7 +1171,7 @@ async def recheck(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 parse_mode="HTML",
             )
             log_authenticated_access(
-                update.effective_user.username, update.message.text
+                update.effective_user.username, query.data
             )
         except Exception as e:
             # Handle errors by editing the message with an error message and
@@ -1143,7 +1187,7 @@ async def recheck(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         log_unauthenticated_access(
             update.effective_user.username,
-            update.message.text,
+            update.callback_query.data if update.callback_query else "",
         )
 
 
@@ -1154,7 +1198,13 @@ async def post_print_service_graphs(
     if is_user_authenticated(update.effective_user.id):
         query = update.callback_query
         await query.answer()
-        type, description, hostname = query.data.split(",")
+        type, description, hostname = query.data.split(",", 2)
+        audit_callback_action(
+            update,
+            "graphs_requested",
+            hostname=hostname,
+            description=description,
+        )
 
         try:
             await context.bot.send_message(
@@ -1353,6 +1403,7 @@ async def open_admin_settings(
                             ],
                             [
                                 KeyboardButton(text="⬇ STOP OMD SERVICES"),
+                                KeyboardButton(text="🔑 GET WEB ADMIN PASSWORD"),
                             ],
                         ],
                         resize_keyboard=False,
@@ -1437,6 +1488,46 @@ async def display_password(
             await update.message.reply_text(
                 translate("For security reasons the bot password is not displayed."),
                 reply_markup=home_menu,
+            )
+            log_authenticated_access(
+                update.effective_user.username, update.message.text
+            )
+        else:
+            log_unauthenticated_access(
+                update.effective_user.username, update.message.text
+            )
+
+    except Exception as e:
+        logger.critical(e)
+        await update.message.reply_text(
+            translate(
+                "I'm sorry but while I was processing your request an "
+                "error occurred!"
+            ),
+            reply_markup=home_menu,
+        )
+
+    return ConversationHandler.END
+
+
+async def display_web_admin_password(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    if await reject_non_admin(update):
+        return ConversationHandler.END
+    try:
+        if is_user_authenticated(update.effective_user.id):
+            admin_password = ensure_web_admin_password()
+            await update.message.reply_text(
+                translate("Web admin password:") + f"\n{admin_password}",
+                reply_markup=home_menu,
+            )
+            storage.add_audit(
+                actor_type="telegram",
+                actor_id=str(update.effective_user.id),
+                actor_name=update.effective_user.username or "",
+                action="web_admin_password_requested",
             )
             log_authenticated_access(
                 update.effective_user.username, update.message.text
@@ -1919,6 +2010,11 @@ async def get_ai_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
         try:
             data = query.data.replace("help,", "")
+            audit_callback_action(
+                update,
+                "help_requested",
+                details=data[:500],
+            )
 
             await context.bot.send_message(
                 text="I am glad to help you with your problem. "
@@ -2002,10 +2098,16 @@ async def acknowledge_service_problem(
     if is_user_authenticated(update.effective_user.id):
         query = update.callback_query
         await query.answer()
-        type, description, hostname = query.data.split(",")
+        type, description, hostname = query.data.split(",", 2)
 
         user = update.effective_user
         username = user.username
+        event_id = audit_callback_action(
+            update,
+            "acknowledge_requested",
+            hostname=hostname,
+            description=description,
+        )
         checkmk.acknowledge_service_problem(
             hostname=hostname,
             service=description,
@@ -2017,7 +2119,8 @@ async def acknowledge_service_problem(
             actor_id=str(user.id),
             actor_name=username or "",
             action="acknowledge_service_problem",
-            target=f"{hostname}/{description}",
+            target=event_id or f"{hostname}/{description}",
+            details=f"host={hostname} service={description}",
         )
 
         try:
@@ -2328,6 +2431,20 @@ def main() -> None:
                 MessageHandler(
                     filters.Regex("^(🔓 GET PASSWORD)$"),
                     display_password,
+                )
+            ],
+            states={},
+            fallbacks=[CommandHandler("cancel", cancel)],
+        )
+    )
+
+    # "🔑 GET WEB ADMIN PASSWORD" command
+    bot_handler.add_handler(
+        ConversationHandler(
+            entry_points=[
+                MessageHandler(
+                    filters.Regex("^(🔑 GET WEB ADMIN PASSWORD)$"),
+                    display_web_admin_password,
                 )
             ],
             states={},

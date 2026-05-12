@@ -52,6 +52,43 @@
       background: linear-gradient(135deg, var(--ctp-brand), var(--ctp-brand-2));
       box-shadow: 0 14px 28px rgba(15, 118, 110, .22);
     }
+    .mobile-menu-button {
+      width: 44px;
+      height: 44px;
+      display: inline-grid;
+      place-items: center;
+      border-radius: 14px;
+      color: var(--ctp-ink);
+      background: #fff;
+      border: 1px solid var(--ctp-line);
+      box-shadow: 0 12px 28px rgba(31, 42, 68, .08);
+    }
+    .mobile-menu-button:focus-visible {
+      outline: 3px solid rgba(37, 99, 235, .22);
+      outline-offset: 2px;
+    }
+    .mobile-nav-drawer {
+      --bs-offcanvas-width: min(390px, calc(100vw - 28px));
+      border-radius: 0 18px 18px 0;
+      border-right: 1px solid var(--ctp-line);
+      background:
+        radial-gradient(circle at 14% 0%, rgba(15, 118, 110, .14), transparent 34%),
+        linear-gradient(180deg, #fbfcff 0%, #f4f7fb 100%);
+    }
+    .mobile-nav-drawer .offcanvas-header {
+      padding: 18px;
+      border-bottom: 1px solid var(--ctp-line);
+    }
+    .mobile-nav-drawer .offcanvas-body {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      padding: 18px;
+    }
+    .mobile-nav-list {
+      display: grid;
+      gap: .55rem;
+    }
     .nav-pill {
       display: flex;
       align-items: center;
@@ -70,6 +107,26 @@
       box-shadow: 0 12px 30px rgba(31, 42, 68, .09);
     }
     .nav-pill i { font-size: 1.05rem; color: var(--ctp-brand); }
+    .mobile-nav-list .nav-pill {
+      min-height: 58px;
+      margin-bottom: 0;
+      padding: .9rem 1rem;
+      border: 1px solid transparent;
+      background: rgba(255, 255, 255, .72);
+    }
+    .mobile-nav-list .nav-pill:hover,
+    .mobile-nav-list .nav-pill.active {
+      transform: none;
+      border-color: rgba(15, 118, 110, .18);
+      box-shadow: 0 14px 34px rgba(31, 42, 68, .08);
+    }
+    .mobile-nav-list .nav-pill.active::after {
+      content: "\F26A";
+      margin-left: auto;
+      color: var(--ctp-brand);
+      font-family: "bootstrap-icons";
+      font-size: 1rem;
+    }
     .topbar {
       position: sticky;
       top: 0;
@@ -151,11 +208,143 @@
     .soft-table td:first-child { border-radius: 12px 0 0 12px; }
     .soft-table td:last-child { border-radius: 0 12px 12px 0; }
     .code-output { white-space: pre-wrap; word-break: break-word; }
+    .alert-message {
+      padding: 1.15rem;
+      border: 1px solid var(--ctp-line);
+      border-radius: 14px;
+      background: #fff;
+      box-shadow: 0 8px 24px rgba(31, 42, 68, .05);
+    }
+    .alert-output {
+      padding: .85rem;
+      border-left: 4px solid #db3f8d;
+      background: #f8e4ef;
+      border-radius: 8px;
+      color: #111827;
+      font-size: .92rem;
+    }
     .form-select,
     .form-control {
       border-radius: 12px;
       border-color: rgba(28, 38, 58, .14);
       min-height: 44px;
+    }
+    .choice-panel {
+      padding: 1rem;
+    }
+    .step-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: .75rem;
+    }
+    .step-chip {
+      min-height: 78px;
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      padding: .9rem;
+      border: 1px solid var(--ctp-line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--ctp-ink);
+    }
+    .step-chip.active {
+      border-color: rgba(15, 118, 110, .38);
+      box-shadow: 0 12px 28px rgba(15, 118, 110, .12);
+    }
+    .step-chip.disabled {
+      color: var(--ctp-muted);
+      background: rgba(255, 255, 255, .58);
+    }
+    .step-number {
+      width: 32px;
+      height: 32px;
+      flex: 0 0 32px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      color: #fff;
+      background: linear-gradient(135deg, var(--ctp-brand), var(--ctp-brand-2));
+      font-weight: 800;
+      font-size: .86rem;
+    }
+    .choice-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+      gap: .75rem;
+      max-height: 430px;
+      overflow: auto;
+      padding: .15rem;
+    }
+    .choice-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .75rem;
+      min-height: 72px;
+      padding: .88rem;
+      border: 1px solid var(--ctp-line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--ctp-ink);
+      transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+    }
+    .choice-card:hover,
+    .choice-card.active {
+      color: var(--ctp-ink);
+      transform: translateY(-2px);
+      border-color: rgba(15, 118, 110, .34);
+      box-shadow: 0 14px 32px rgba(31, 42, 68, .09);
+    }
+    .choice-card.active {
+      background: linear-gradient(180deg, #fff, rgba(15, 118, 110, .06));
+    }
+    .choice-main { min-width: 0; }
+    .choice-title {
+      font-weight: 750;
+      overflow-wrap: anywhere;
+    }
+    .choice-subtitle {
+      color: var(--ctp-muted);
+      font-size: .84rem;
+      margin-top: .15rem;
+    }
+    .health-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+    }
+    .health-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      padding: .38rem .58rem;
+      border-radius: 999px;
+      background: #fff;
+      border: 1px solid var(--ctp-line);
+      color: var(--ctp-muted);
+      font-size: .84rem;
+      font-weight: 650;
+    }
+    .search-field {
+      position: relative;
+    }
+    .search-field i {
+      position: absolute;
+      left: .88rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--ctp-muted);
+    }
+    .search-field input {
+      padding-left: 2.35rem;
+    }
+    .empty-hint {
+      padding: 1.25rem;
+      border: 1px dashed rgba(28, 38, 58, .2);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .62);
+      color: var(--ctp-muted);
     }
     .btn { border-radius: 12px; font-weight: 650; }
     .btn-primary {
@@ -202,19 +391,11 @@
         border-right: 0;
         border-bottom: 1px solid var(--ctp-line);
       }
-      .mobile-nav-scroll {
-        display: flex;
-        gap: .45rem;
-        overflow-x: auto;
-        padding-bottom: .35rem;
-      }
-      .mobile-nav-scroll .nav-pill {
-        white-space: nowrap;
-        margin-bottom: 0;
-      }
       .topbar { position: relative; padding: 14px; }
       .content-wrap { padding: 14px; }
       .soft-table { min-width: 760px; }
+      .step-row { grid-template-columns: 1fr; }
+      .choice-grid { grid-template-columns: 1fr; max-height: none; }
     }
   </style>
 </head>
@@ -222,21 +403,30 @@
 {% if is_authenticated %}
 <div class="app-shell">
   <aside class="sidebar">
-    <div class="d-flex align-items-center gap-3 mb-4">
-      <div class="brand-mark"><i class="bi bi-activity"></i></div>
-      <div>
-        <div class="fw-bold">Telegram Plus</div>
-        <div class="small text-secondary">Checkmk Control Center</div>
+    <div class="d-flex align-items-center justify-content-between gap-3 mb-lg-4">
+      <div class="d-flex align-items-center gap-3 min-w-0">
+        <div class="brand-mark flex-shrink-0"><i class="bi bi-activity"></i></div>
+        <div class="min-w-0">
+          <div class="fw-bold text-truncate">Telegram Plus</div>
+          <div class="small text-secondary text-truncate">Checkmk Control Center</div>
+        </div>
       </div>
+      <button class="mobile-menu-button d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileNavigation" aria-controls="mobileNavigation" aria-label="Navigation öffnen">
+        <i class="bi bi-list fs-4"></i>
+      </button>
     </div>
-    <div class="mobile-nav-scroll d-lg-block">
+    <div class="d-none d-lg-block">
       <a class="nav-pill {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}"><i class="bi bi-speedometer2"></i><span>Dashboard</span></a>
       <a class="nav-pill {% if request.endpoint == 'monitoring' %}active{% endif %}" href="{{ url_for('monitoring') }}"><i class="bi bi-search"></i><span>Monitoring</span></a>
       <a class="nav-pill {% if request.endpoint == 'problems' %}active{% endif %}" href="{{ url_for('problems') }}"><i class="bi bi-exclamation-triangle"></i><span>Probleme</span></a>
       <a class="nav-pill {% if request.endpoint == 'admin_notifications' %}active{% endif %}" href="{{ url_for('admin_notifications') }}"><i class="bi bi-bell"></i><span>Alerts</span></a>
+      {% if is_web_admin %}
       <a class="nav-pill {% if request.endpoint == 'admin_users' %}active{% endif %}" href="{{ url_for('admin_users') }}"><i class="bi bi-people"></i><span>Benutzer</span></a>
       <a class="nav-pill {% if request.endpoint == 'admin_audit' %}active{% endif %}" href="{{ url_for('admin_audit') }}"><i class="bi bi-shield-check"></i><span>Audit</span></a>
       <a class="nav-pill {% if request.endpoint == 'admin_config' %}active{% endif %}" href="{{ url_for('admin_config') }}"><i class="bi bi-sliders"></i><span>Config</span></a>
+      {% else %}
+      <a class="nav-pill {% if request.endpoint == 'admin_login' %}active{% endif %}" href="{{ url_for('admin_login') }}"><i class="bi bi-shield-lock"></i><span>Admin Login</span></a>
+      {% endif %}
     </div>
     <div class="d-none d-lg-block mt-auto pt-4">
       <div class="p-3 rounded-4 bg-white border">
@@ -245,6 +435,41 @@
       </div>
     </div>
   </aside>
+  <div class="offcanvas offcanvas-start mobile-nav-drawer d-lg-none" tabindex="-1" id="mobileNavigation" aria-labelledby="mobileNavigationLabel">
+    <div class="offcanvas-header">
+      <div class="d-flex align-items-center gap-3 min-w-0">
+        <div class="brand-mark flex-shrink-0"><i class="bi bi-activity"></i></div>
+        <div class="min-w-0">
+          <div class="fw-bold text-truncate" id="mobileNavigationLabel">Telegram Plus</div>
+          <div class="small text-secondary text-truncate">Navigation</div>
+        </div>
+      </div>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Navigation schließen"></button>
+    </div>
+    <div class="offcanvas-body">
+      <nav class="mobile-nav-list" aria-label="Mobile Navigation">
+        <a class="nav-pill {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}"><i class="bi bi-speedometer2"></i><span>Dashboard</span></a>
+        <a class="nav-pill {% if request.endpoint == 'monitoring' %}active{% endif %}" href="{{ url_for('monitoring') }}"><i class="bi bi-search"></i><span>Monitoring</span></a>
+        <a class="nav-pill {% if request.endpoint == 'problems' %}active{% endif %}" href="{{ url_for('problems') }}"><i class="bi bi-exclamation-triangle"></i><span>Probleme</span></a>
+        <a class="nav-pill {% if request.endpoint == 'admin_notifications' %}active{% endif %}" href="{{ url_for('admin_notifications') }}"><i class="bi bi-bell"></i><span>Alerts</span></a>
+        {% if is_web_admin %}
+        <a class="nav-pill {% if request.endpoint == 'admin_users' %}active{% endif %}" href="{{ url_for('admin_users') }}"><i class="bi bi-people"></i><span>Benutzer</span></a>
+        <a class="nav-pill {% if request.endpoint == 'admin_audit' %}active{% endif %}" href="{{ url_for('admin_audit') }}"><i class="bi bi-shield-check"></i><span>Audit</span></a>
+        <a class="nav-pill {% if request.endpoint == 'admin_config' %}active{% endif %}" href="{{ url_for('admin_config') }}"><i class="bi bi-sliders"></i><span>Config</span></a>
+        {% else %}
+        <a class="nav-pill {% if request.endpoint == 'admin_login' %}active{% endif %}" href="{{ url_for('admin_login') }}"><i class="bi bi-shield-lock"></i><span>Admin Login</span></a>
+        {% endif %}
+      </nav>
+      <div class="mt-auto p-3 rounded-4 bg-white border">
+        <div class="d-flex align-items-center gap-2 small text-secondary mb-2"><span class="status-dot"></span>Service erreichbar</div>
+        <div class="fw-semibold text-break">{{ site }}</div>
+      </div>
+      <form method="post" action="{{ url_for('logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-outline-secondary w-100" type="submit"><i class="bi bi-box-arrow-right me-1"></i>Logout</button>
+      </form>
+    </div>
+  </div>
   <section>
     <div class="topbar d-flex align-items-center justify-content-between gap-3">
       <div>
@@ -271,5 +496,17 @@
 </div>
 {% endif %}
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  document.querySelectorAll("[data-choice-search]").forEach((input) => {
+    const target = document.querySelector(input.dataset.choiceSearch);
+    if (!target) return;
+    input.addEventListener("input", () => {
+      const term = input.value.trim().toLowerCase();
+      target.querySelectorAll("[data-search-text]").forEach((item) => {
+        item.hidden = term && !item.dataset.searchText.toLowerCase().includes(term);
+      });
+    });
+  });
+</script>
 </body>
 </html>

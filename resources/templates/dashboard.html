@@ -79,7 +79,11 @@
         <a class="quick-action" href="{{ url_for('monitoring') }}"><span><i class="bi bi-search me-2 text-primary"></i>Host/Service abfragen</span><i class="bi bi-arrow-right"></i></a>
         <a class="quick-action" href="{{ url_for('problems') }}"><span><i class="bi bi-exclamation-diamond me-2 text-warning"></i>Problemübersicht öffnen</span><i class="bi bi-arrow-right"></i></a>
         <a class="quick-action" href="{{ url_for('admin_notifications') }}"><span><i class="bi bi-archive me-2 text-success"></i>Alert-Log ansehen</span><i class="bi bi-arrow-right"></i></a>
+        {% if is_web_admin %}
         <a class="quick-action" href="{{ url_for('admin_users') }}"><span><i class="bi bi-person-gear me-2 text-primary"></i>Benutzer verwalten</span><i class="bi bi-arrow-right"></i></a>
+        {% else %}
+        <a class="quick-action" href="{{ url_for('admin_login') }}"><span><i class="bi bi-shield-lock me-2 text-primary"></i>Admin Login</span><i class="bi bi-arrow-right"></i></a>
+        {% endif %}
       </div>
     </div>
   </div>

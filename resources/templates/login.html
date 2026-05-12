@@ -8,18 +8,18 @@
           <div class="brand-mark bg-white text-primary"><i class="bi bi-shield-lock"></i></div>
           <div>
             <div class="small opacity-75">Checkmk Telegram Plus</div>
-            <h1 class="h3 mb-0">Control Center</h1>
+            <h1 class="h3 mb-0">{{ title }}</h1>
           </div>
         </div>
       </div>
       <div class="card-body p-4">
-        <p class="text-secondary mb-4">Melde dich mit dem Bot-Passwort an, um Monitoring, Alerts und Adminfunktionen zu öffnen.</p>
+        <p class="text-secondary mb-4">{{ lead }}</p>
         <form method="post">
           <div class="mb-3">
-            <label class="form-label fw-semibold" for="password">Passwort</label>
+            <label class="form-label fw-semibold" for="password">{{ field_label }}</label>
             <input class="form-control form-control-lg" id="password" name="password" type="password" autocomplete="current-password" required autofocus>
           </div>
-          <button class="btn btn-primary btn-lg w-100" type="submit"><i class="bi bi-box-arrow-in-right me-1"></i>Einloggen</button>
+          <button class="btn btn-primary btn-lg w-100" type="submit"><i class="bi bi-box-arrow-in-right me-1"></i>{{ button_label }}</button>
         </form>
       </div>
     </div>

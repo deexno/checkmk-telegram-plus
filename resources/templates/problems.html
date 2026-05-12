@@ -8,22 +8,69 @@
   </div>
 </div>
 
+{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+
 <div class="card mb-4">
-  <div class="card-body">
-    {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
-    <form method="get" class="row g-3">
-      <div class="col-12 col-lg-6">
-        <label class="form-label fw-semibold"><i class="bi bi-diagram-3 me-1 text-primary"></i>Hostgruppe</label>
-        <select class="form-select" name="hostgroup" onchange="this.form.submit()">
-          <option value="">Auswählen</option>
-          {% for group in hostgroups %}
-            <option value="{{ group }}" {% if group == selected_hostgroup %}selected{% endif %}>{{ group }}</option>
-          {% endfor %}
-        </select>
+  <div class="card-body choice-panel">
+    <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-3">
+      <div>
+        <div class="fw-semibold"><i class="bi bi-diagram-3 me-2 text-primary"></i>Hostgruppe auswählen</div>
+        <div class="small text-secondary">Danach siehst du alle Hosts der Gruppe und die aktuellen Probleme.</div>
       </div>
-    </form>
+      <div class="search-field col-12 col-lg-4">
+        <i class="bi bi-search"></i>
+        <input class="form-control" type="search" placeholder="Hostgruppe suchen" data-choice-search="#problemHostgroupChoices">
+      </div>
+    </div>
+    <div id="problemHostgroupChoices" class="choice-grid">
+      {% for group in hostgroups %}
+        <a class="choice-card {% if group == selected_hostgroup %}active{% endif %}" href="{{ url_for('problems', hostgroup=group) }}" data-search-text="{{ group }}">
+          <div class="choice-main">
+            <div class="choice-title">{{ group }}</div>
+            <div class="choice-subtitle">Problemübersicht öffnen</div>
+          </div>
+          <i class="bi bi-chevron-right text-primary"></i>
+        </a>
+      {% else %}
+        <div class="empty-hint">Keine Hostgruppen gefunden.</div>
+      {% endfor %}
+    </div>
   </div>
 </div>
+
+{% if selected_hostgroup %}
+<div class="card mb-4">
+  <div class="card-header bg-white d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
+    <div>
+      <div class="fw-semibold"><i class="bi bi-hdd-stack me-2 text-primary"></i>Hosts in {{ selected_hostgroup }}</div>
+      <div class="health-strip mt-2">
+        <span class="health-pill"><i class="bi bi-hdd-network"></i>{{ host_cards | length }} Hosts</span>
+        <span class="health-pill"><i class="bi bi-check-circle text-success"></i>{{ host_cards | selectattr("has_problem", "equalto", false) | list | length }} OK</span>
+        <span class="health-pill"><i class="bi bi-exclamation-triangle text-danger"></i>{{ host_cards | selectattr("has_problem", "equalto", true) | list | length }} mit Problem</span>
+      </div>
+    </div>
+    <div class="search-field col-12 col-lg-4">
+      <i class="bi bi-search"></i>
+      <input class="form-control" type="search" placeholder="Host oder Status suchen" data-choice-search="#groupHostList">
+    </div>
+  </div>
+  <div class="card-body choice-panel">
+    <div id="groupHostList" class="choice-grid">
+      {% for host in host_cards %}
+        <a class="choice-card" href="{{ url_for('monitoring', hostgroup=selected_hostgroup, host=host.hostname) }}" data-search-text="{{ host.hostname }} {{ host.summary }} {{ host.badge_text }}">
+          <div class="choice-main">
+            <div class="choice-title">{{ host.hostname }}</div>
+            <div class="choice-subtitle">{{ host.summary }}</div>
+          </div>
+          <span class="badge text-bg-{{ host.badge_css }}">{{ host.badge_text }}</span>
+        </a>
+      {% else %}
+        <div class="empty-hint">Keine Hosts in dieser Hostgruppe gefunden.</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <div class="row g-3">
   <div class="col-12 col-xl-5">

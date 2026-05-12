@@ -339,6 +339,13 @@ class AppStorage:
             ).fetchall()
             return [dict(row) for row in rows]
 
+    def notification_event(self, event_id: str) -> dict[str, Any] | None:
+        with self.connect() as db:
+            row = db.execute(
+                "SELECT * FROM notification_events WHERE event_id = ?", (event_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
     def notification_deliveries(self, event_id: str) -> list[dict[str, Any]]:
         with self.connect() as db:
             rows = db.execute(
@@ -352,6 +359,26 @@ class AppStorage:
                 (event_id,),
             ).fetchall()
             return [dict(row) for row in rows]
+
+    def notification_event_id_for_delivery(
+        self, telegram_id: int, telegram_message_id: int | None
+    ) -> str:
+        if telegram_message_id is None:
+            return ""
+        with self.connect() as db:
+            row = db.execute(
+                """
+                SELECT event_id
+                FROM notification_deliveries
+                WHERE telegram_id = ?
+                    AND telegram_message_id = ?
+                    AND status = 'sent'
+                ORDER BY sent_at DESC
+                LIMIT 1
+                """,
+                (telegram_id, telegram_message_id),
+            ).fetchone()
+            return str(row["event_id"]) if row else ""
 
     def add_audit(
         self,
@@ -377,6 +404,20 @@ class AppStorage:
         with self.connect() as db:
             rows = db.execute(
                 "SELECT * FROM audit_log ORDER BY created_at DESC LIMIT ?", (limit,)
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def audit_for_target(self, target: str, limit: int = 100) -> list[dict[str, Any]]:
+        with self.connect() as db:
+            rows = db.execute(
+                """
+                SELECT *
+                FROM audit_log
+                WHERE target = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (target, limit),
             ).fetchall()
             return [dict(row) for row in rows]
 
