@@ -1,21 +1,32 @@
 {% extends "base.html" %}
 {% block content %}
+<div class="d-flex flex-column flex-xl-row justify-content-between gap-3 mb-4">
+  <div>
+    <div class="page-kicker">Delivery Intelligence</div>
+    <h1 class="page-title mb-1">Alert-Log</h1>
+    <p class="text-secondary mb-0">Nachvollziehen, welche Notifications erzeugt und an wen sie zugestellt wurden.</p>
+  </div>
+</div>
+
 <div class="row g-3">
   <div class="col-12 col-xl-8">
     <div class="card">
-      <div class="card-header bg-white fw-semibold">Alert-Log</div>
+      <div class="card-header bg-white d-flex align-items-center justify-content-between">
+        <div class="fw-semibold"><i class="bi bi-bell me-2 text-primary"></i>Notifications</div>
+        <span class="badge text-bg-light border">{{ notifications | length }} Events</span>
+      </div>
       <div class="table-responsive">
-        <table class="table table-hover mb-0">
+        <table class="table soft-table mb-0">
           <thead><tr><th>Zeit</th><th>Typ</th><th>Host</th><th>Service</th><th>Status</th><th>Delivery</th></tr></thead>
           <tbody>
           {% for event in notifications %}
             <tr>
-              <td class="text-nowrap">{{ event.created_at }}</td>
-              <td>{{ event.notification_type }}</td>
-              <td>{{ event.hostname }}</td>
-              <td>{{ event.service_description }}</td>
-              <td>{{ event.from_state }} → {{ event.to_state }}</td>
-              <td><a href="{{ url_for('admin_notifications', event_id=event.event_id) }}">{{ event.sent_count or 0 }}/{{ event.delivery_count or 0 }}</a></td>
+              <td class="text-nowrap small text-secondary">{{ event.created_at }}</td>
+              <td><span class="badge text-bg-light border">{{ event.notification_type }}</span></td>
+              <td class="fw-semibold">{{ event.hostname }}</td>
+              <td>{{ event.service_description or "HOST STATUS" }}</td>
+              <td><span class="badge text-bg-light border">{{ event.from_state }} → {{ event.to_state }}</span></td>
+              <td><a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin_notifications', event_id=event.event_id) }}">{{ event.sent_count or 0 }}/{{ event.delivery_count or 0 }}</a></td>
             </tr>
           {% else %}
             <tr><td colspan="6" class="text-secondary">Noch keine Alerts.</td></tr>
@@ -27,12 +38,12 @@
   </div>
   <div class="col-12 col-xl-4">
     <div class="card">
-      <div class="card-header bg-white fw-semibold">Zustellungen</div>
+      <div class="card-header bg-white fw-semibold"><i class="bi bi-send-check me-2 text-success"></i>Zustellungen</div>
       <div class="card-body">
         {% if selected_event_id %}
           <p class="small text-secondary text-break">{{ selected_event_id }}</p>
           {% for delivery in deliveries %}
-            <div class="border-bottom py-2">
+            <div class="quick-action mb-2 d-block">
               <div><strong>{{ delivery.status }}</strong> an {{ delivery.username or delivery.telegram_id }}</div>
               <div class="small text-secondary">{{ delivery.sent_at }}</div>
               {% if delivery.error %}<div class="small text-danger">{{ delivery.error }}</div>{% endif %}

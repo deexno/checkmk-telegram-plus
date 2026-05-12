@@ -1,12 +1,19 @@
 {% extends "base.html" %}
 {% block content %}
+<div class="d-flex flex-column flex-xl-row justify-content-between gap-3 mb-4">
+  <div>
+    <div class="page-kicker">Incidents</div>
+    <h1 class="page-title mb-1">Was ist gerade kritisch?</h1>
+    <p class="text-secondary mb-0">Host- und Service-Probleme gruppiert nach Hostgruppe.</p>
+  </div>
+</div>
+
 <div class="card mb-4">
   <div class="card-body">
-    <h1 class="h4 mb-3">Problemübersicht</h1>
     {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
     <form method="get" class="row g-3">
       <div class="col-12 col-lg-6">
-        <label class="form-label">Hostgruppe</label>
+        <label class="form-label fw-semibold"><i class="bi bi-diagram-3 me-1 text-primary"></i>Hostgruppe</label>
         <select class="form-select" name="hostgroup" onchange="this.form.submit()">
           <option value="">Auswählen</option>
           {% for group in hostgroups %}
@@ -21,13 +28,16 @@
 <div class="row g-3">
   <div class="col-12 col-xl-5">
     <div class="card">
-      <div class="card-header bg-white fw-semibold">Host-Probleme</div>
+      <div class="card-header bg-white d-flex align-items-center justify-content-between">
+        <div class="fw-semibold"><i class="bi bi-hdd-network me-2 text-danger"></i>Host-Probleme</div>
+        <span class="badge text-bg-danger">{{ host_problems | length }}</span>
+      </div>
       <div class="table-responsive">
-        <table class="table table-hover mb-0">
+        <table class="table soft-table mb-0">
           <thead><tr><th>Host</th><th>Status</th></tr></thead>
           <tbody>
           {% for host in host_problems %}
-            <tr><td>{{ host.hostname }}</td><td>{{ host.state | state | safe }}</td></tr>
+            <tr><td class="fw-semibold">{{ host.hostname }}</td><td>{{ host.state | state | safe }}</td></tr>
           {% else %}
             <tr><td colspan="2" class="text-secondary">Keine Host-Probleme.</td></tr>
           {% endfor %}
@@ -38,14 +48,17 @@
   </div>
   <div class="col-12 col-xl-7">
     <div class="card">
-      <div class="card-header bg-white fw-semibold">Service-Probleme</div>
+      <div class="card-header bg-white d-flex align-items-center justify-content-between">
+        <div class="fw-semibold"><i class="bi bi-cpu me-2 text-warning"></i>Service-Probleme</div>
+        <span class="badge text-bg-warning">{{ service_problems | length }}</span>
+      </div>
       <div class="table-responsive">
-        <table class="table table-hover mb-0">
+        <table class="table soft-table mb-0">
           <thead><tr><th>Host</th><th>Service</th><th>Status</th></tr></thead>
           <tbody>
           {% for service in service_problems %}
             <tr>
-              <td>{{ service.hostname }}</td>
+              <td class="fw-semibold">{{ service.hostname }}</td>
               <td>{{ service.description }}</td>
               <td>{{ service.state | state | safe }}</td>
             </tr>

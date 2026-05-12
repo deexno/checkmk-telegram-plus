@@ -1,12 +1,19 @@
 {% extends "base.html" %}
 {% block content %}
+<div class="d-flex flex-column flex-xl-row justify-content-between gap-3 mb-4">
+  <div>
+    <div class="page-kicker">Explorer</div>
+    <h1 class="page-title mb-1">Host & Service Lookup</h1>
+    <p class="text-secondary mb-0">Wähle Hostgruppe, Host und optional einen Service. Die Ansicht aktualisiert sich automatisch.</p>
+  </div>
+</div>
+
 <div class="card mb-4">
   <div class="card-body">
-    <h1 class="h4 mb-3">Monitoring</h1>
     {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
     <form method="get" class="row g-3">
       <div class="col-12 col-lg-4">
-        <label class="form-label">Hostgruppe</label>
+        <label class="form-label fw-semibold"><i class="bi bi-diagram-3 me-1 text-primary"></i>Hostgruppe</label>
         <select class="form-select" name="hostgroup" onchange="this.form.submit()">
           <option value="">Auswählen</option>
           {% for group in hostgroups %}
@@ -15,7 +22,7 @@
         </select>
       </div>
       <div class="col-12 col-lg-4">
-        <label class="form-label">Host</label>
+        <label class="form-label fw-semibold"><i class="bi bi-hdd-network me-1 text-primary"></i>Host</label>
         <select class="form-select" name="host" onchange="this.form.submit()" {% if not hosts %}disabled{% endif %}>
           <option value="">Auswählen</option>
           {% for host in hosts %}
@@ -24,7 +31,7 @@
         </select>
       </div>
       <div class="col-12 col-lg-4">
-        <label class="form-label">Service</label>
+        <label class="form-label fw-semibold"><i class="bi bi-cpu me-1 text-primary"></i>Service</label>
         <select class="form-select" name="service" onchange="this.form.submit()" {% if not services %}disabled{% endif %}>
           <option value="">Optional auswählen</option>
           {% for service in services %}
@@ -41,20 +48,27 @@
 {% if host_status is not none %}
 <div class="row g-3">
   <div class="col-12 col-xl-4">
-    <div class="card h-100"><div class="card-body">
+    <div class="card metric-card h-100"><div class="card-body position-relative">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <div class="icon-tile"><i class="bi bi-hdd-rack"></i></div>
+        {{ host_status | state | safe }}
+      </div>
       <div class="text-secondary mb-1">Hoststatus</div>
-      <h2 class="h4">{{ selected_host }} {{ host_status | state | safe }}</h2>
+      <h2 class="h4 mb-0 text-break">{{ selected_host }}</h2>
     </div></div>
   </div>
   <div class="col-12 col-xl-8">
     <div class="card">
-      <div class="card-header bg-white fw-semibold">Services</div>
+      <div class="card-header bg-white d-flex align-items-center justify-content-between">
+        <div class="fw-semibold"><i class="bi bi-list-check me-2 text-primary"></i>Services</div>
+        <span class="badge text-bg-light border">{{ services | length }} Einträge</span>
+      </div>
       <div class="table-responsive">
-        <table class="table table-hover mb-0">
+        <table class="table soft-table mb-0">
           <thead><tr><th>Service</th><th>Status</th></tr></thead>
           <tbody>
           {% for service in services %}
-            <tr><td>{{ service.description }}</td><td>{{ service.state | state | safe }}</td></tr>
+            <tr><td class="fw-semibold">{{ service.description }}</td><td>{{ service.state | state | safe }}</td></tr>
           {% endfor %}
           </tbody>
         </table>
@@ -66,15 +80,25 @@
 
 {% if service_details %}
 <div class="card mt-3">
-  <div class="card-header bg-white fw-semibold">{{ selected_host }} / {{ selected_service }}</div>
+  <div class="card-header bg-white d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2">
+    <div class="fw-semibold"><i class="bi bi-terminal me-2 text-primary"></i>{{ selected_host }} / {{ selected_service }}</div>
+    {{ service_details.state | state | safe }}
+  </div>
   <div class="card-body">
-    <p>{{ service_details.state | state | safe }}</p>
-    <h2 class="h6">Summary</h2>
-    <pre class="code-output bg-light border rounded p-3">{{ service_details.plugin_output }}</pre>
-    <h2 class="h6">Details</h2>
-    <pre class="code-output bg-light border rounded p-3">{{ service_details.long_plugin_output }}</pre>
-    <h2 class="h6">Metriken</h2>
-    <pre class="code-output bg-light border rounded p-3">{{ service_details.perf_data }}</pre>
+    <div class="row g-3">
+      <div class="col-12 col-lg-6">
+        <h2 class="h6 text-secondary">Summary</h2>
+        <pre class="code-output bg-white border rounded-4 p-3">{{ service_details.plugin_output }}</pre>
+      </div>
+      <div class="col-12 col-lg-6">
+        <h2 class="h6 text-secondary">Metriken</h2>
+        <pre class="code-output bg-white border rounded-4 p-3">{{ service_details.perf_data }}</pre>
+      </div>
+      <div class="col-12">
+        <h2 class="h6 text-secondary">Details</h2>
+        <pre class="code-output bg-white border rounded-4 p-3">{{ service_details.long_plugin_output }}</pre>
+      </div>
+    </div>
   </div>
 </div>
 {% endif %}

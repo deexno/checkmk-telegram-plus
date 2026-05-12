@@ -5,42 +5,259 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Checkmk Telegram Plus</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <style>
-    body { background: #f6f8fb; }
-    .navbar { box-shadow: 0 2px 20px rgba(20, 40, 80, .08); }
-    .card { border: 1px solid rgba(20, 40, 80, .08); border-radius: .75rem; box-shadow: 0 10px 30px rgba(20, 40, 80, .06); }
-    .metric { font-size: 2rem; font-weight: 700; letter-spacing: 0; }
-    .table td, .table th { vertical-align: middle; }
+    :root {
+      --ctp-bg: #f4f7fb;
+      --ctp-panel: rgba(255, 255, 255, .9);
+      --ctp-ink: #182033;
+      --ctp-muted: #697386;
+      --ctp-line: rgba(28, 38, 58, .1);
+      --ctp-brand: #0f766e;
+      --ctp-brand-2: #2563eb;
+      --ctp-danger: #dc2626;
+      --ctp-warn: #ca8a04;
+    }
+    * { letter-spacing: 0; }
+    body {
+      min-height: 100vh;
+      color: var(--ctp-ink);
+      background:
+        radial-gradient(circle at 8% 6%, rgba(15, 118, 110, .12), transparent 28%),
+        radial-gradient(circle at 95% 8%, rgba(37, 99, 235, .10), transparent 30%),
+        linear-gradient(180deg, #fbfcff 0%, var(--ctp-bg) 45%, #eef3f8 100%);
+    }
+    a { text-decoration: none; }
+    .app-shell {
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 20px;
+      background: rgba(255, 255, 255, .78);
+      border-right: 1px solid var(--ctp-line);
+      backdrop-filter: blur(18px);
+    }
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 14px;
+      color: #fff;
+      background: linear-gradient(135deg, var(--ctp-brand), var(--ctp-brand-2));
+      box-shadow: 0 14px 28px rgba(15, 118, 110, .22);
+    }
+    .nav-pill {
+      display: flex;
+      align-items: center;
+      gap: .7rem;
+      padding: .76rem .9rem;
+      margin-bottom: .35rem;
+      color: #344052;
+      border-radius: 12px;
+      transition: transform .18s ease, background .18s ease, color .18s ease, box-shadow .18s ease;
+    }
+    .nav-pill:hover,
+    .nav-pill.active {
+      color: #0f172a;
+      background: #fff;
+      transform: translateX(3px);
+      box-shadow: 0 12px 30px rgba(31, 42, 68, .09);
+    }
+    .nav-pill i { font-size: 1.05rem; color: var(--ctp-brand); }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      padding: 14px 22px;
+      background: rgba(244, 247, 251, .72);
+      border-bottom: 1px solid var(--ctp-line);
+      backdrop-filter: blur(18px);
+    }
+    .content-wrap { padding: 22px; }
+    .page-kicker {
+      color: var(--ctp-brand);
+      font-size: .78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .page-title { font-size: clamp(1.55rem, 2vw, 2.35rem); font-weight: 800; }
+    .glass-card,
+    .card {
+      background: var(--ctp-panel);
+      border: 1px solid var(--ctp-line);
+      border-radius: 16px;
+      box-shadow: 0 16px 42px rgba(31, 42, 68, .08);
+      animation: panel-in .42s ease both;
+    }
+    .card-header {
+      border-bottom: 1px solid var(--ctp-line);
+      background: rgba(255, 255, 255, .72) !important;
+      border-radius: 16px 16px 0 0 !important;
+    }
+    .metric { font-size: 2.15rem; font-weight: 800; }
+    .metric-card {
+      position: relative;
+      overflow: hidden;
+      transition: transform .18s ease, box-shadow .18s ease;
+    }
+    .metric-card:hover { transform: translateY(-3px); box-shadow: 0 20px 48px rgba(31, 42, 68, .12); }
+    .metric-card::after {
+      content: "";
+      position: absolute;
+      inset: auto -24px -36px auto;
+      width: 120px;
+      height: 120px;
+      border-radius: 32px;
+      background: rgba(15, 118, 110, .08);
+      transform: rotate(18deg);
+    }
+    .icon-tile {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 13px;
+      color: #fff;
+      background: linear-gradient(135deg, var(--ctp-brand), var(--ctp-brand-2));
+    }
+    .soft-table {
+      border-collapse: separate;
+      border-spacing: 0 .55rem;
+      margin-top: -.55rem;
+    }
+    .soft-table thead th {
+      color: var(--ctp-muted);
+      font-size: .76rem;
+      text-transform: uppercase;
+      border: 0;
+    }
+    .soft-table tbody tr {
+      background: #fff;
+      box-shadow: 0 8px 24px rgba(31, 42, 68, .05);
+      transition: transform .16s ease, box-shadow .16s ease;
+    }
+    .soft-table tbody tr:hover { transform: translateY(-1px); box-shadow: 0 12px 30px rgba(31, 42, 68, .08); }
+    .soft-table td {
+      vertical-align: middle;
+      border: 0;
+      padding: .95rem;
+    }
+    .soft-table td:first-child { border-radius: 12px 0 0 12px; }
+    .soft-table td:last-child { border-radius: 0 12px 12px 0; }
     .code-output { white-space: pre-wrap; word-break: break-word; }
+    .form-select,
+    .form-control {
+      border-radius: 12px;
+      border-color: rgba(28, 38, 58, .14);
+      min-height: 44px;
+    }
+    .btn { border-radius: 12px; font-weight: 650; }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--ctp-brand), var(--ctp-brand-2));
+      border: 0;
+      box-shadow: 0 12px 24px rgba(15, 118, 110, .18);
+    }
+    .status-dot {
+      width: .58rem;
+      height: .58rem;
+      display: inline-block;
+      border-radius: 999px;
+      background: #22c55e;
+      box-shadow: 0 0 0 .24rem rgba(34, 197, 94, .14);
+    }
+    .quick-action {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: .95rem;
+      border-radius: 14px;
+      color: var(--ctp-ink);
+      background: #fff;
+      border: 1px solid var(--ctp-line);
+      transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+    }
+    .quick-action:hover {
+      color: var(--ctp-ink);
+      transform: translateY(-2px);
+      border-color: rgba(15, 118, 110, .28);
+      box-shadow: 0 14px 34px rgba(31, 42, 68, .08);
+    }
+    @keyframes panel-in {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @media (max-width: 991.98px) {
+      .app-shell { display: block; }
+      .sidebar {
+        position: relative;
+        height: auto;
+        padding: 12px;
+        border-right: 0;
+        border-bottom: 1px solid var(--ctp-line);
+      }
+      .mobile-nav-scroll {
+        display: flex;
+        gap: .45rem;
+        overflow-x: auto;
+        padding-bottom: .35rem;
+      }
+      .mobile-nav-scroll .nav-pill {
+        white-space: nowrap;
+        margin-bottom: 0;
+      }
+      .topbar { position: relative; padding: 14px; }
+      .content-wrap { padding: 14px; }
+      .soft-table { min-width: 760px; }
+    }
   </style>
 </head>
 <body>
 {% if is_authenticated %}
-<nav class="navbar navbar-expand-lg bg-white sticky-top">
-  <div class="container-fluid">
-    <a class="navbar-brand fw-semibold" href="{{ url_for('dashboard') }}">Checkmk Telegram Plus</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="nav">
-      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('monitoring') }}">Monitoring</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('problems') }}">Probleme</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_notifications') }}">Alerts</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_users') }}">Benutzer</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_audit') }}">Audit</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_config') }}">Config</a></li>
-      </ul>
-      <span class="navbar-text me-3">Site: <strong>{{ site }}</strong></span>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="d-flex align-items-center gap-3 mb-4">
+      <div class="brand-mark"><i class="bi bi-activity"></i></div>
+      <div>
+        <div class="fw-bold">Telegram Plus</div>
+        <div class="small text-secondary">Checkmk Control Center</div>
+      </div>
+    </div>
+    <div class="mobile-nav-scroll d-lg-block">
+      <a class="nav-pill {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}"><i class="bi bi-speedometer2"></i><span>Dashboard</span></a>
+      <a class="nav-pill {% if request.endpoint == 'monitoring' %}active{% endif %}" href="{{ url_for('monitoring') }}"><i class="bi bi-search"></i><span>Monitoring</span></a>
+      <a class="nav-pill {% if request.endpoint == 'problems' %}active{% endif %}" href="{{ url_for('problems') }}"><i class="bi bi-exclamation-triangle"></i><span>Probleme</span></a>
+      <a class="nav-pill {% if request.endpoint == 'admin_notifications' %}active{% endif %}" href="{{ url_for('admin_notifications') }}"><i class="bi bi-bell"></i><span>Alerts</span></a>
+      <a class="nav-pill {% if request.endpoint == 'admin_users' %}active{% endif %}" href="{{ url_for('admin_users') }}"><i class="bi bi-people"></i><span>Benutzer</span></a>
+      <a class="nav-pill {% if request.endpoint == 'admin_audit' %}active{% endif %}" href="{{ url_for('admin_audit') }}"><i class="bi bi-shield-check"></i><span>Audit</span></a>
+      <a class="nav-pill {% if request.endpoint == 'admin_config' %}active{% endif %}" href="{{ url_for('admin_config') }}"><i class="bi bi-sliders"></i><span>Config</span></a>
+    </div>
+    <div class="d-none d-lg-block mt-auto pt-4">
+      <div class="p-3 rounded-4 bg-white border">
+        <div class="d-flex align-items-center gap-2 small text-secondary mb-2"><span class="status-dot"></span>Service erreichbar</div>
+        <div class="fw-semibold text-break">{{ site }}</div>
+      </div>
+    </div>
+  </aside>
+  <section>
+    <div class="topbar d-flex align-items-center justify-content-between gap-3">
+      <div>
+        <div class="page-kicker">Live Operations</div>
+        <div class="fw-semibold">Site <span class="text-primary">{{ site }}</span></div>
+      </div>
       <form method="post" action="{{ url_for('logout') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="btn btn-outline-secondary btn-sm" type="submit">Logout</button>
+        <button class="btn btn-outline-secondary btn-sm" type="submit"><i class="bi bi-box-arrow-right me-1"></i>Logout</button>
       </form>
     </div>
-  </div>
-</nav>
 {% endif %}
-<main class="container-fluid py-4">
+<main class="{% if is_authenticated %}content-wrap{% else %}container-fluid py-4{% endif %}">
   {% for category, message in get_flashed_messages(with_categories=true) %}
     <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
       {{ message }}
@@ -49,6 +266,10 @@
   {% endfor %}
   {% block content %}{% endblock %}
 </main>
+{% if is_authenticated %}
+  </section>
+</div>
+{% endif %}
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

@@ -341,39 +341,62 @@ def update_config(section, key, value):
 def translate(text):
     config.read(CONFIG_PATH)
 
+    if text is None:
+        return ""
+
     # If the language is not present (e.g. due to an upgrade from an old
     # version to a new one), create it
     if not config.has_option("telegram_bot", "language"):
         update_config("telegram_bot", "language", "en")
 
     output_language = config["telegram_bot"]["language"]
-    translator = Translator(to_lang=output_language)
 
-    if not output_language == "en":
+    if output_language == "en":
+        return text
+
+    text = str(text)
+    if len(text) > 450:
+        logger.warning(
+            "Skipping translation because text length exceeds provider limit: %s",
+            len(text),
+        )
+        return text
+
+    try:
+        translator = Translator(to_lang=output_language)
         return translator.translate(text)
-    else:
+    except Exception as e:
+        logger.warning("Translation failed, using original text: %s", e)
         return text
 
 
 def get_bot_version_details():
-    details = requests.get(
-        "https://api.github.com/repos/deexno/checkmk-telegram-plus/releases/latest"
-    )
+    try:
+        details = requests.get(
+            "https://api.github.com/repos/deexno/checkmk-telegram-plus/releases/latest",
+            timeout=10,
+        )
+        details.raise_for_status()
+        release = details.json()
+    except Exception as e:
+        logger.warning("Could not retrieve latest release details: %s", e)
+        return True, ""
 
     if config.has_option("telegram_bot", "version"):
         installed_version = config["telegram_bot"]["version"]
-        up_to_date = details.json()["tag_name"] == installed_version
+        latest_version = release.get("tag_name", "unknown")
+        up_to_date = latest_version == installed_version
 
         version_summary = (
             f"<u><b>{translate('BOT VERSION DETAILS')}:</b></u>\n"
             f"{translate('LATEST VERSION')}: "
-            f"{details.json()['tag_name']}\n"
+            f"{latest_version}\n"
             f"{translate('INSTALLED VERSION')}: "
             f"{'Yes' if up_to_date else 'No'} ({installed_version})\n"
             f"{translate('PUPLISHED AT')}: "
-            f"{details.json()['published_at']}\n\n"
+            f"{release.get('published_at', 'unknown')}\n\n"
             f"<u><b>{translate('CHANGES')}:</b></u>\n"
-            f"{translate(details.json()['body'])}\n\n"
+            f"{html.escape(release.get('body') or '')}\n\n"
             "<a href='https://github.com/deexno/checkmk-telegram-plus'>"
             f"{translate('OPEN THE UPDATE/INSTALLATION GUIDE')}</a>\n\n"
             "<a href='https://www.paypal.com/paypalme/deexno'>"

@@ -1,9 +1,17 @@
 {% extends "base.html" %}
 {% block content %}
+<div class="d-flex flex-column flex-xl-row justify-content-between gap-3 mb-4">
+  <div>
+    <div class="page-kicker">Configuration</div>
+    <h1 class="page-title mb-1">Konfiguration</h1>
+    <p class="text-secondary mb-0">Lesbare Übersicht der aktiven Config. Secrets bleiben maskiert.</p>
+  </div>
+</div>
+
 <div class="card">
-  <div class="card-header bg-white fw-semibold">Konfiguration</div>
+  <div class="card-header bg-white fw-semibold"><i class="bi bi-sliders me-2 text-primary"></i>Runtime Config</div>
   <div class="card-body">
-    <p class="text-secondary">Quelle: <code>{{ config_path }}</code>. Secrets werden maskiert.</p>
+    <p class="text-secondary">Quelle: <code>{{ config_path }}</code></p>
     <div class="accordion" id="configAccordion">
       {% for section, values in safe_config.items() %}
       <div class="accordion-item">
@@ -17,7 +25,7 @@
             <dl class="row mb-0">
               {% for key, value in values.items() %}
                 <dt class="col-12 col-md-4">{{ key }}</dt>
-                <dd class="col-12 col-md-8"><code>{{ value }}</code></dd>
+                <dd class="col-12 col-md-8 text-break"><code>{{ value }}</code></dd>
               {% endfor %}
             </dl>
           </div>

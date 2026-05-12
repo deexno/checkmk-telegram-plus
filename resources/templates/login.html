@@ -1,19 +1,25 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="row justify-content-center align-items-center" style="min-height: 80vh;">
-  <div class="col-12 col-sm-10 col-md-6 col-lg-4">
-    <div class="card">
-      <div class="card-body p-4">
-        <div class="mb-4">
-          <h1 class="h3 mb-1">Web Login</h1>
-          <p class="text-secondary mb-0">Mit dem Bot-Passwort anmelden.</p>
+<div class="row justify-content-center align-items-center" style="min-height: 86vh;">
+  <div class="col-12 col-sm-10 col-md-7 col-lg-5 col-xl-4">
+    <div class="card overflow-hidden">
+      <div class="p-4 text-white" style="background: linear-gradient(135deg, #0f766e, #2563eb);">
+        <div class="d-flex align-items-center gap-3">
+          <div class="brand-mark bg-white text-primary"><i class="bi bi-shield-lock"></i></div>
+          <div>
+            <div class="small opacity-75">Checkmk Telegram Plus</div>
+            <h1 class="h3 mb-0">Control Center</h1>
+          </div>
         </div>
+      </div>
+      <div class="card-body p-4">
+        <p class="text-secondary mb-4">Melde dich mit dem Bot-Passwort an, um Monitoring, Alerts und Adminfunktionen zu öffnen.</p>
         <form method="post">
           <div class="mb-3">
-            <label class="form-label" for="password">Passwort</label>
+            <label class="form-label fw-semibold" for="password">Passwort</label>
             <input class="form-control form-control-lg" id="password" name="password" type="password" autocomplete="current-password" required autofocus>
           </div>
-          <button class="btn btn-primary btn-lg w-100" type="submit">Einloggen</button>
+          <button class="btn btn-primary btn-lg w-100" type="submit"><i class="bi bi-box-arrow-in-right me-1"></i>Einloggen</button>
         </form>
       </div>
     </div>
