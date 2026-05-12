@@ -38,14 +38,14 @@ The installer asks for the following values:<br>
 
 Recommended one-line installation command:
 ```bash
-curl -fsSL https://github.com/deexno/checkmk-telegram-plus/releases/latest/download/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/deexno/checkmk-telegram-plus/refs/heads/main/install.sh | sudo bash
 ```
 
 If you are already logged in as root, run the same command without `sudo`.
 
 Optional non-interactive installation:
 ```bash
-curl -fsSL https://github.com/deexno/checkmk-telegram-plus/releases/latest/download/install.sh | sudo bash -s -- <omd_site_name> <api_token> <bot_password>
+curl -fsSL https://raw.githubusercontent.com/deexno/checkmk-telegram-plus/refs/heads/main/install.sh | sudo bash -s -- <omd_site_name> <api_token> <bot_password>
 ```
 
 2. Create a rule that exports the notifications using our new Notification Plugin.
