@@ -9,7 +9,6 @@ and implements a small allowlist of typed operations needed by the app.
 from __future__ import annotations
 
 import base64
-import grp
 import json
 import os
 import socket
@@ -21,15 +20,28 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from typing import Any
 
-import livestatus
-from cmk.notification_plugins.utils import render_cmk_graphs
-
 SITE = "<omd_site>"
 SITE_DIR = Path("/omd/sites") / SITE
 SOCKET_PATH = "<bridge_socket_path>"
-SOCKET_GROUP = "<app_user>"
 MAX_BODY_SIZE = 1024 * 1024
 MAX_FIELD_LENGTH = 512
+
+
+def add_checkmk_site_python_paths() -> None:
+    paths = []
+    for base in (SITE_DIR / "lib", SITE_DIR / "local" / "lib"):
+        for python_dir in [base / "python3", *base.glob("python3.*")]:
+            paths.append(python_dir)
+            paths.append(python_dir / "site-packages")
+    for path in reversed(paths):
+        path_text = str(path)
+        if path.exists() and path_text not in sys.path:
+            sys.path.insert(0, path_text)
+
+
+add_checkmk_site_python_paths()
+
+import livestatus  # noqa: E402
 
 livestatus_connection = livestatus.SingleSiteConnection(
     f"unix:{SITE_DIR}/tmp/run/live"
@@ -110,6 +122,14 @@ def service_details(params: dict[str, Any]) -> dict[str, Any]:
 
 
 def service_graphs(params: dict[str, Any]) -> list[str]:
+    try:
+        from cmk.notification_plugins.utils import render_cmk_graphs
+    except Exception as exc:
+        raise RuntimeError(
+            "Checkmk graph rendering is unavailable in this site Python "
+            f"environment: {exc}"
+        ) from exc
+
     hostname = clean_name(params.get("hostname"), "hostname")
     service = clean_name(params.get("service"), "service")
     render_config = {
@@ -269,10 +289,13 @@ def main() -> int:
     Path(SOCKET_PATH).parent.mkdir(parents=True, exist_ok=True)
     if os.path.exists(SOCKET_PATH):
         os.unlink(SOCKET_PATH)
+    old_umask = os.umask(0o007)
     with UnixServer(SOCKET_PATH, BridgeHandler) as server:
-        os.chown(SOCKET_PATH, -1, grp.getgrnam(SOCKET_GROUP).gr_gid)
         os.chmod(SOCKET_PATH, 0o660)
-        server.serve_forever()
+        try:
+            server.serve_forever()
+        finally:
+            os.umask(old_umask)
     return 0
 
 
