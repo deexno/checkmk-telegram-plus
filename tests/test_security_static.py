@@ -25,7 +25,12 @@ class SecurityStaticTest(unittest.TestCase):
         self.assertIn("/etc/checkmk-telegram-plus", text)
         self.assertIn("config.ini.bak.", text)
 
+    def test_service_preserves_checkmk_pythonpath(self):
+        text = (
+            ROOT / "resources" / "checkmk-telegram-plus.service"
+        ).read_text(encoding="utf-8")
+        self.assertIn("PYTHONPATH=<pythonpath>:${PYTHONPATH:-}", text)
+
 
 if __name__ == "__main__":
     unittest.main()
-

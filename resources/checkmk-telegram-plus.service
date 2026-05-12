@@ -11,7 +11,7 @@ ExecStartPre=/bin/chown <omd_site>:<omd_site> <run_dir>
 # The app runs from /opt in its own virtual environment. runuser keeps the
 # Checkmk site environment available for Livestatus, graph rendering and OMD
 # commands while third-party dependencies stay out of the Checkmk site tree.
-ExecStart=<runuser_path> -l <omd_site> -c 'cd <app_dir> && CHECKMK_TELEGRAM_PLUS_CONFIG=<config_path> PYTHONPATH=<pythonpath> <venv_python> <app_dir>/telegram_bot.py'
+ExecStart=<runuser_path> -l <omd_site> -c 'cd <app_dir> && CHECKMK_TELEGRAM_PLUS_CONFIG=<config_path> PYTHONPATH=<pythonpath>:${PYTHONPATH:-} <venv_python> <app_dir>/telegram_bot.py'
 Restart=always
 RestartSec=5
 
