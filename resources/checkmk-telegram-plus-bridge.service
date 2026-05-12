@@ -5,8 +5,9 @@ Wants=network-online.target
 
 [Service]
 PermissionsStartOnly=true
-ExecStartPre=/bin/mkdir -p <run_dir>
-ExecStartPre=/bin/chown <omd_site>:<app_user> <run_dir>
+ExecStartPre=+/bin/mkdir -p <run_dir>
+ExecStartPre=+/bin/chown root:<app_user> <run_dir>
+ExecStartPre=+/bin/chmod 770 <run_dir>
 ExecStart=<runuser_path> -l <omd_site> -c '<site_python> <bridge_script>'
 Restart=always
 RestartSec=5

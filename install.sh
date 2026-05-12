@@ -271,6 +271,7 @@ chown "$app_user:$app_user" "$state_root" "$run_dir"
 chown -R "$app_user:$app_user" "$state_dir" "$log_dir"
 chmod 750 "$state_root" "$state_dir" "$state_dir/fallback" "$log_dir"
 chmod 770 "$run_dir"
+chown root:"$app_user" "$run_dir"
 
 old_config="$site_share_dir/config.ini"
 if [ -f "$old_config" ]; then
