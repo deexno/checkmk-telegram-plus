@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <div class="card-header bg-white fw-semibold">Benutzerverwaltung</div>
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead><tr><th>User</th><th>Telegram ID</th><th>Rollen und Abos</th><th>Aktion</th></tr></thead>
+      <tbody>
+      {% for user in users %}
+        <tr>
+          <td>
+            <div class="fw-semibold">{{ user.username or "-" }}</div>
+            <div class="text-secondary small">{{ user.first_name }} {{ user.last_name }}</div>
+          </td>
+          <td>{{ user.telegram_id }}</td>
+          <td>
+            <form method="post" id="user-{{ user.telegram_id }}" class="d-flex flex-wrap gap-3">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="telegram_id" value="{{ user.telegram_id }}">
+              <div class="form-check form-switch"><input class="form-check-input" name="active" type="checkbox" {% if user.active %}checked{% endif %}> <label class="form-check-label">aktiv</label></div>
+              <div class="form-check form-switch"><input class="form-check-input" name="is_admin" type="checkbox" {% if user.is_admin %}checked{% endif %}> <label class="form-check-label">Admin</label></div>
+              <div class="form-check form-switch"><input class="form-check-input" name="notify_loud" type="checkbox" {% if user.notify_loud %}checked{% endif %}> <label class="form-check-label">Loud</label></div>
+              <div class="form-check form-switch"><input class="form-check-input" name="notify_silent" type="checkbox" {% if user.notify_silent %}checked{% endif %}> <label class="form-check-label">Silent</label></div>
+            </form>
+          </td>
+          <td><button class="btn btn-primary btn-sm" form="user-{{ user.telegram_id }}" type="submit">Speichern</button></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="4" class="text-secondary">Noch keine Benutzer in der Datenbank.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

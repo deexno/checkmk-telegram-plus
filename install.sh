@@ -182,6 +182,7 @@ notification_queue="$state_dir/notifications.queue"
 fallback_queue="$state_dir/fallback/notifications.jsonl"
 telegram_plus_service_name="checkmk-telegram-plus-$omd_site.service"
 telegram_plus_bridge_service_name="checkmk-telegram-plus-bridge-$omd_site.service"
+telegram_plus_web_service_name="checkmk-telegram-plus-web-$omd_site.service"
 
 if [ ! -d "$omd_site_dir" ]; then
     error "The CheckMK site '$omd_site' does not exist at $omd_site_dir."
@@ -280,9 +281,11 @@ for required_file in \
     "$source_dir/resources/requirements.txt" \
     "$source_dir/resources/config.ini" \
     "$source_dir/resources/telegram_bot.py" \
+    "$source_dir/resources/web_app.py" \
     "$source_dir/resources/fqueue.py" \
     "$source_dir/resources/checkmk-telegram-plus.service" \
     "$source_dir/resources/checkmk-telegram-plus-bridge.service" \
+    "$source_dir/resources/checkmk-telegram-plus-web.service" \
     "$source_dir/checkmk/notifications/telegram_plus_notify_listener" \
     "$source_dir/checkmk/bridge/checkmk_bridge.py" \
     "$source_dir/src/checkmk_telegram_plus/api/notification_socket.py"
@@ -322,7 +325,14 @@ usermod -a -G "$app_user" "$omd_site"
 mkdir -p "$app_dir" "$venv_dir" "$config_dir" "$state_dir/fallback" "$log_dir" "$run_dir" "$site_share_dir/backups"
 chown "$app_user:$app_user" "$state_root" "$run_dir"
 chown -R "$app_user:$app_user" "$state_dir" "$log_dir"
-chmod 750 "$state_root" "$state_dir" "$state_dir/fallback" "$log_dir"
+chown "$omd_site:$app_user" "$state_dir" "$state_dir/fallback"
+chmod 755 "$state_root"
+chmod 750 "$log_dir"
+chmod 2770 "$state_dir" "$state_dir/fallback"
+if [ -f "$fallback_queue" ]; then
+    chown "$omd_site:$app_user" "$fallback_queue"
+    chmod 660 "$fallback_queue"
+fi
 chmod 2770 "$run_dir"
 chown root:"$app_user" "$run_dir"
 
@@ -474,6 +484,7 @@ ensure("telegram_bot")
 ensure("check_mk")
 ensure("paths")
 ensure("checkmk_web")
+ensure("web")
 
 config.set("telegram_bot", "language", language or "en")
 config.set("telegram_bot", "allowed_users", allowed_users)
@@ -524,6 +535,9 @@ config.set("checkmk_web", "automation_secret", web_automation_secret)
 config.set("checkmk_web", "graph_count", str(graph_count_int))
 config.set("checkmk_web", "allow_legacy_url_auth", web_allow_legacy_url_auth or "no")
 
+config.set("web", "host", config.get("web", "host", fallback="127.0.0.1"))
+config.set("web", "port", config.get("web", "port", fallback="8183"))
+
 ensure("openai")
 config.set("openai", "model", openai_model or "gpt-4o-mini")
 config.set("openai", "token", openai_token or "YOUR-TOKEN")
@@ -543,8 +557,12 @@ info "Installing external app files..."
 rm -rf "$app_dir.new"
 mkdir -p "$app_dir.new/src"
 cp "$source_dir/resources/telegram_bot.py" "$app_dir.new/telegram_bot.py"
+cp "$source_dir/resources/web_app.py" "$app_dir.new/web_app.py"
 cp "$source_dir/resources/fqueue.py" "$app_dir.new/fqueue.py"
 cp -R "$source_dir/src/checkmk_telegram_plus" "$app_dir.new/src/"
+if [ -d "$source_dir/resources/templates" ]; then
+    cp -R "$source_dir/resources/templates" "$app_dir.new/"
+fi
 rm -rf "$app_dir.previous"
 if [ -d "$app_dir" ] && [ "$(find "$app_dir" -mindepth 1 -maxdepth 1 | wc -l)" -gt 0 ]; then
     mv "$app_dir" "$app_dir.previous"
@@ -641,6 +659,16 @@ sed -i "s|<site_python>|$(escape_sed_replacement "$omd_site_dir/bin/python3")|g"
 sed -i "s|<bridge_script>|$(escape_sed_replacement "$bridge_script")|g" "$bridge_service_tmp"
 cp "$bridge_service_tmp" "/etc/systemd/system/$telegram_plus_bridge_service_name"
 
+web_service_tmp="$tmp_dir/checkmk-telegram-plus-web.service"
+cp "$source_dir/resources/checkmk-telegram-plus-web.service" "$web_service_tmp"
+sed -i "s|<omd_site>|$omd_site_sed|g" "$web_service_tmp"
+sed -i "s|<app_user>|$app_user_sed|g" "$web_service_tmp"
+sed -i "s|<app_dir>|$app_dir_sed|g" "$web_service_tmp"
+sed -i "s|<venv_python>|$venv_python_sed|g" "$web_service_tmp"
+sed -i "s|<pythonpath>|$pythonpath_sed|g" "$web_service_tmp"
+sed -i "s|<config_path>|$config_path_sed|g" "$web_service_tmp"
+cp "$web_service_tmp" "/etc/systemd/system/$telegram_plus_web_service_name"
+
 info "Starting systemd service..."
 if ! systemctl daemon-reload; then
     error "Failed to reload systemd."
@@ -651,11 +679,17 @@ fi
 if ! systemctl enable "$telegram_plus_service_name"; then
     error "Failed to enable systemd service $telegram_plus_service_name."
 fi
+if ! systemctl enable "$telegram_plus_web_service_name"; then
+    error "Failed to enable systemd service $telegram_plus_web_service_name."
+fi
 if ! systemctl restart "$telegram_plus_bridge_service_name"; then
     error "Failed to restart systemd service $telegram_plus_bridge_service_name. Check logs with: journalctl -u $telegram_plus_bridge_service_name"
 fi
 if ! systemctl restart "$telegram_plus_service_name"; then
     error "Failed to restart systemd service $telegram_plus_service_name. Check logs with: journalctl -u $telegram_plus_service_name"
+fi
+if ! systemctl restart "$telegram_plus_web_service_name"; then
+    error "Failed to restart systemd service $telegram_plus_web_service_name. Check logs with: journalctl -u $telegram_plus_web_service_name"
 fi
 
 echo
@@ -669,5 +703,6 @@ echo "State: $state_dir"
 echo "Logs: $log_dir"
 echo "Socket: $socket_path"
 echo "Bridge socket: $bridge_socket_path"
+echo "Web UI: http://127.0.0.1:8183"
 echo "Rollback data: $site_share_dir/backups and any legacy-* directory"
 echo "Next step: create or keep the CheckMK notification rule as described in the README."

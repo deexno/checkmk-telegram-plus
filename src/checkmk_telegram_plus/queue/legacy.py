@@ -62,6 +62,14 @@ def read_jsonl(path: str | os.PathLike[str]) -> list[dict[str, object]]:
 def rewrite_jsonl(path: str | os.PathLike[str], items: Iterable[Mapping[str, object]]) -> None:
     queue_path = Path(path)
     queue_path.parent.mkdir(parents=True, exist_ok=True)
+    if queue_path.exists():
+        with queue_path.open("w", encoding="utf-8") as handle:
+            for item in items:
+                handle.write(json.dumps(item, ensure_ascii=False, separators=(",", ":")))
+                handle.write("\n")
+        os.chmod(queue_path, 0o660)
+        return
+
     fd, tmp_name = tempfile.mkstemp(
         prefix=f".{queue_path.name}.", dir=str(queue_path.parent), text=True
     )
@@ -71,8 +79,7 @@ def rewrite_jsonl(path: str | os.PathLike[str], items: Iterable[Mapping[str, obj
                 handle.write(json.dumps(item, ensure_ascii=False, separators=(",", ":")))
                 handle.write("\n")
         os.replace(tmp_name, queue_path)
-        os.chmod(queue_path, 0o600)
+        os.chmod(queue_path, 0o660)
     finally:
         if os.path.exists(tmp_name):
             os.unlink(tmp_name)
-

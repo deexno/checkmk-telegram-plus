@@ -27,6 +27,12 @@ If the socket is unavailable, the adapter appends the payload to:
 /var/lib/checkmk-telegram-plus/<site>/fallback/notifications.jsonl
 ```
 
+The fallback directory is owned by the Checkmk site user and the
+`checkmk-telegram-plus` group with setgid permissions (`2770`). The fallback
+file is written with group read/write permissions (`660`) so the Checkmk
+notification adapter can persist events and the external app can drain them
+after restart.
+
 The adapter does not import Telegram, OpenAI, Flask/FastAPI or other large
 third-party dependencies.
 
@@ -70,14 +76,19 @@ Graph rendering is version tolerant:
 4. If the notification graph endpoint is unavailable or rejected by the Checkmk
    version, the bridge tries the public `graph_image.py` PNG export endpoint
    with multiple known request formats.
-5. The recommended `base_url` is the local HTTP URL
+5. The automation user must be allowed to see the requested host/service and
+   query graph data. For restricted roles this usually means correct contact
+   group visibility or `See all hosts and services`, plus the Checkmk role
+   permission `Query metric backend from custom graph editor` on versions that
+   provide it. Graph collection permissions are not enough by themselves.
+6. The recommended `base_url` is the local HTTP URL
    `http://127.0.0.1/<site>`. If a loopback HTTPS URL fails certificate
    verification because the certificate is not valid for `127.0.0.1`,
    `localhost` or `::1`, the bridge retries the local request over HTTP. If
    the local web server redirects that HTTP request back to HTTPS, the bridge
    retries loopback HTTPS without certificate verification as a last resort.
    This relaxed TLS fallback is never used for non-loopback hosts.
-6. If neither method is available, only the graph request fails with a clear
+7. If neither method is available, only the graph request fails with a clear
    error message. The bridge service and the bot keep running.
 
 ### External app

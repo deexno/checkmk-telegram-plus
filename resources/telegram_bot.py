@@ -30,6 +30,7 @@ from telegram.ext import (
 )
 from translate import Translator
 from checkmk_telegram_plus.checkmk.client import CheckmkBridgeClient
+from checkmk_telegram_plus.storage import AppStorage, database_path_from_config
 
 # Read configuration file
 config = configparser.RawConfigParser()
@@ -118,6 +119,8 @@ Path(notify_query_folder).mkdir(parents=True, exist_ok=True)
 
 notifcation_queue = fqueue.Queue(notify_query_path)
 notification_socket_service = None
+storage = AppStorage(database_path_from_config(config))
+storage.migrate_from_config(config)
 
 
 def start_notification_socket_service():
@@ -260,7 +263,7 @@ def notifcation_listener():
         try:
             for notification in notifcation_queue.get_queue():
                 bot_handler_job_queue.run_once(
-                    send_automatic_notification, 3, data=notification["event"]
+                    send_automatic_notification, 3, data=notification
                 )
                 notifcation_queue.drop_item(notification["id"])
 
@@ -287,20 +290,15 @@ def log_unauthenticated_access(username, command):
 
 # Method to check if a user is authenticated
 def is_user_authenticated(user_id):
-    # Read the config file again so that no information is missing.
-    config.read(CONFIG_PATH)
-
-    # Check if the user is in the allowed_users list
-    if str(user_id) in config["telegram_bot"]["allowed_users"]:
-        return True
-    else:
-        return False
+    return storage.is_user_authenticated(int(user_id))
 
 
 def is_user_admin(user_id):
-    config.read(CONFIG_PATH)
-    admin_users = config["telegram_bot"].get("admin_users", "")
-    return str(user_id) in admin_users
+    if storage.is_user_admin(int(user_id)):
+        return True
+    # Backward compatible bootstrap: if no admins were migrated yet, any
+    # authenticated user can still open the legacy admin menu.
+    return not any(user["is_admin"] and user["active"] for user in storage.list_users())
 
 
 async def reject_non_admin(update):
@@ -916,15 +914,19 @@ async def try_to_authenticate(
 
     # Check if the password entered by the user matches the config password
     if update.message.text == password:
-        allowed_users = config["telegram_bot"]["allowed_users"]
-
-        # If the user is not already allowed, add their user ID to the
-        # allowed_users list
-        if str(user.id) not in allowed_users:
-            allowed_users = (
-                f"{allowed_users}{update.effective_user.username} ({user.id}),"
-            )
-            update_config("telegram_bot", "allowed_users", allowed_users)
+        storage.upsert_user(
+            telegram_id=int(user.id),
+            username=update.effective_user.username or "",
+            first_name=update.effective_user.first_name or "",
+            last_name=update.effective_user.last_name or "",
+            active=True,
+        )
+        storage.add_audit(
+            actor_type="telegram",
+            actor_id=str(user.id),
+            actor_name=update.effective_user.username or "",
+            action="user_authenticated",
+        )
 
         # Let the user know they have successfully authenticated
         await update.message.reply_text(
@@ -956,20 +958,18 @@ async def get_notification_settings(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> int:
     if is_user_authenticated(update.effective_user.id):
-        # Read the config file to get the current notification settings
-        config.read(CONFIG_PATH)
         user_id = update.effective_user.id
 
         # Determine whether the user is currently subscribed to loud and/or
         # silent notifications and store accordingly different option buttons
         current_setting_loud = (
             "➕ ACTIVATE"
-            if str(user_id) not in config["telegram_bot"]["notifications_loud"]
+            if not storage.notification_enabled(int(user_id), "notifications_loud")
             else "➖ DISABLE"
         )
         current_setting_silent = (
             "➕ ACTIVATE"
-            if str(user_id) not in config["telegram_bot"]["notifications_silent"]
+            if not storage.notification_enabled(int(user_id), "notifications_silent")
             else "➖ DISABLE"
         )
 
@@ -1000,9 +1000,6 @@ async def change_notifications_setting(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> int:
     try:
-        # Read the configuration file to get the current notification settings
-        config.read(CONFIG_PATH)
-
         # Get the user's selection from the keyboard
         selection = update.message.text
 
@@ -1011,21 +1008,17 @@ async def change_notifications_setting(
             "notifications_loud" if "LOUD" in selection else "notifications_silent"
         )
 
-        # Get the current notification setting for the user
-        current_setting = config["telegram_bot"][setting]
-
-        # If the user wants to activate notifications, add their user ID to
-        # the list
-        if "ACTIVATE" in selection:
-            current_setting = f"{current_setting}{update.effective_user.id},"
-        # If the user wants to disable notifications, remove their user ID
-        # from the list
-        else:
-            current_setting = current_setting.replace(
-                f"{update.effective_user.id},", ""
-            )
-
-        update_config("telegram_bot", setting, current_setting)
+        storage.set_notification_preference(
+            int(update.effective_user.id), setting, "ACTIVATE" in selection
+        )
+        storage.add_audit(
+            actor_type="telegram",
+            actor_id=str(update.effective_user.id),
+            actor_name=update.effective_user.username or "",
+            action="notification_preference_changed",
+            target=setting,
+            details=selection,
+        )
 
         # Notify the user that their setting has been changed
         await update.message.reply_text(
@@ -1185,8 +1178,11 @@ async def post_print_service_graphs(
 
 
 async def send_automatic_notification(context: ContextTypes.DEFAULT_TYPE):
-    # Read the notification details from the file passed via the job scheduler
-    notificaion_variables = context.job.data.split(";", 7)
+    event_id = context.job.data.get("id", "") if isinstance(context.job.data, dict) else ""
+    raw_event = context.job.data.get("event", "") if isinstance(context.job.data, dict) else context.job.data
+    if not event_id:
+        event_id = f"legacy-{abs(hash(raw_event))}"
+    notificaion_variables = raw_event.split(";", 7)
     (
         type,
         ip,
@@ -1198,10 +1194,19 @@ async def send_automatic_notification(context: ContextTypes.DEFAULT_TYPE):
         output,
     ) = notificaion_variables
 
-    # Read the recipient list for the corresponding notification type from the
-    # config file
-    config.read(CONFIG_PATH)
-    recipient_list = config["telegram_bot"][type].split(",")
+    recipient_list = storage.notification_recipients(type)
+    storage.record_notification_event(
+        event_id=event_id,
+        notification_type=type,
+        ip_address=ip,
+        hostname=hostname,
+        hostgroup=hostgroup,
+        service_description=description,
+        from_state=from_state,
+        to_state=to_state,
+        output=output,
+        raw_event=raw_event,
+    )
 
     # Get the state details in the form of emoji and text for both from_state
     # and to_state
@@ -1225,7 +1230,7 @@ async def send_automatic_notification(context: ContextTypes.DEFAULT_TYPE):
 
     # Send the message to all the recipients in the recipient list
     for recipient in recipient_list:
-        if recipient.isnumeric():
+        try:
             reply_markup = [
                 [
                     InlineKeyboardButton(
@@ -1264,13 +1269,27 @@ async def send_automatic_notification(context: ContextTypes.DEFAULT_TYPE):
                     ],
                 ]
 
-            await context.bot.send_message(
+            sent_message = await context.bot.send_message(
                 chat_id=recipient,
                 disable_notification=True if type == "notifications_silent" else False,
                 text=message,
                 reply_markup=InlineKeyboardMarkup(reply_markup),
                 parse_mode="HTML",
             )
+            storage.record_delivery(
+                event_id=event_id,
+                telegram_id=int(recipient),
+                status="sent",
+                telegram_message_id=getattr(sent_message, "message_id", None),
+            )
+        except Exception as e:
+            storage.record_delivery(
+                event_id=event_id,
+                telegram_id=int(recipient),
+                status="failed",
+                error=str(e),
+            )
+            logger.critical(e)
 
 
 async def open_admin_settings(
@@ -1283,9 +1302,7 @@ async def open_admin_settings(
             config.read(CONFIG_PATH)
             user_id = update.effective_user.id
 
-            admin_users = config["telegram_bot"].get("admin_users", "")
-
-            if str(user_id) in admin_users or not admin_users:
+            if is_user_admin(user_id):
                 # Notify the user that their setting has been changed
                 await update.message.reply_text(
                     translate("ADMINISTATOR SETTINGS WERE OPENED"),
@@ -1395,7 +1412,7 @@ async def display_password(
     try:
         if is_user_authenticated(update.effective_user.id):
             await update.message.reply_text(
-                config["telegram_bot"]["password_for_authentication"],
+                translate("For security reasons the bot password is not displayed."),
                 reply_markup=home_menu,
             )
             log_authenticated_access(
@@ -1472,19 +1489,18 @@ async def list_users(
         return ConversationHandler.END
     try:
         if is_user_authenticated(update.effective_user.id):
-            allowed_users = config["telegram_bot"]["allowed_users"]
-            users_notify_l = config["telegram_bot"]["notifications_loud"]
-            users_notify_s = config["telegram_bot"]["notifications_silent"]
+            users = storage.list_users()
+            users_text = "\n".join(
+                f"{'✅' if user['active'] else '🚫'} "
+                f"{'ADMIN' if user['is_admin'] else 'USER'} "
+                f"{user['username'] or '-'} ({user['telegram_id']}) "
+                f"L:{'on' if user['notify_loud'] else 'off'} "
+                f"S:{'on' if user['notify_silent'] else 'off'}"
+                for user in users
+            )
 
             await update.message.reply_html(
-                f"<u><b>{translate('ALLOWED USERS')}</b></u>:\n"
-                f"{allowed_users}"
-                f"\n\n<u><b>{translate('USERS WITH ACTIVE NOTIFICATIONS')} "
-                "(LOUD)</b></u>:\n"
-                f"{users_notify_l}"
-                f"\n\n<u><b>{translate('USERS WITH ACTIVE NOTIFICATIONS')} "
-                "(SILENT)</b></u>:\n"
-                f"{users_notify_s}",
+                f"<u><b>{translate('USERS')}</b></u>:\n{html.escape(users_text)}",
                 reply_markup=home_menu,
             )
 
@@ -1519,9 +1535,10 @@ async def get_user(
         if is_user_authenticated(update.effective_user.id):
             users = []
 
-            for user in config["telegram_bot"]["allowed_users"].split(","):
-                if not user == "":
-                    users.append(KeyboardButton(text=str(user)))
+            for user in storage.list_users():
+                if user["active"]:
+                    label = f"{user['username'] or '-'} ({user['telegram_id']})"
+                    users.append(KeyboardButton(text=label))
 
             await update.message.reply_text(
                 translate("Select a user!"),
@@ -1564,9 +1581,15 @@ async def delete_user(
     if await reject_non_admin(update):
         return ConversationHandler.END
     try:
-        allowed_users = config["telegram_bot"]["allowed_users"]
-        allowed_users = allowed_users.replace(f"{update.message.text},", "")
-        update_config("telegram_bot", "allowed_users", allowed_users)
+        user_id = update.message.text.split("(")[-1].split(")")[0]
+        storage.delete_user(int(user_id))
+        storage.add_audit(
+            actor_type="telegram",
+            actor_id=str(update.effective_user.id),
+            actor_name=update.effective_user.username or "",
+            action="user_disabled",
+            target=user_id,
+        )
 
         await update.message.reply_text(
             translate("✅ DONE"),
@@ -1830,34 +1853,15 @@ async def update_language(
 
 
 async def message_all_users(context: ContextTypes.DEFAULT_TYPE):
-    # Read the recipient list for the corresponding notification type from the
-    # config file
-    config.read(CONFIG_PATH)
-    recipient_list = []
-
-    for recipient in config["telegram_bot"]["allowed_users"].split(","):
-        if recipient.isnumeric():
-            # For older versions simply add the userid
-            recipient_list.append(recipient)
-        else:
-            # For newer versions, extract the user ID from the user information
-            recipient = recipient.split("(")[len(recipient.split("(")) - 1].split(")")[
-                0
-            ]
-
-            if recipient != "":
-                recipient_list.append(recipient)
-
     # Send the message to all the recipients in the recipient list
-    for recipient in recipient_list:
-        if recipient.isnumeric():
-            await context.bot.send_message(
-                chat_id=recipient,
-                disable_notification=False,
-                text=context.job.data,
-                reply_markup=home_menu,
-                parse_mode="HTML",
-            )
+    for recipient in storage.all_active_users():
+        await context.bot.send_message(
+            chat_id=recipient,
+            disable_notification=False,
+            text=context.job.data,
+            reply_markup=home_menu,
+            parse_mode="HTML",
+        )
 
 
 def ask_ai(question):
@@ -1984,6 +1988,13 @@ async def acknowledge_service_problem(
             service=description,
             username=username,
             user_id=user.id,
+        )
+        storage.add_audit(
+            actor_type="telegram",
+            actor_id=str(user.id),
+            actor_name=username or "",
+            action="acknowledge_service_problem",
+            target=f"{hostname}/{description}",
         )
 
         try:

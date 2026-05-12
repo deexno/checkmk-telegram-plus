@@ -12,6 +12,8 @@ class SecurityStaticTest(unittest.TestCase):
         self.assertNotIn("shell=True", text)
         self.assertIn("socket.AF_UNIX", text)
         self.assertIn("settimeout", text)
+        self.assertIn("0o660", text)
+        self.assertIn("0o2770", text)
 
     def test_telegram_bot_does_not_use_shell_true(self):
         text = (ROOT / "resources" / "telegram_bot.py").read_text(encoding="utf-8")
@@ -24,6 +26,9 @@ class SecurityStaticTest(unittest.TestCase):
         self.assertIn("/opt/checkmk-telegram-plus", text)
         self.assertIn("/etc/checkmk-telegram-plus", text)
         self.assertIn("config.ini.bak.", text)
+        self.assertIn("chown \"$omd_site:$app_user\" \"$state_dir\"", text)
+        self.assertIn("chmod 2770 \"$state_dir\" \"$state_dir/fallback\"", text)
+        self.assertIn("chmod 660 \"$fallback_queue\"", text)
 
     def test_installer_reviews_existing_config_without_printing_secrets(self):
         text = (ROOT / "install.sh").read_text(encoding="utf-8")

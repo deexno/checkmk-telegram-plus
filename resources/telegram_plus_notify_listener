@@ -112,12 +112,14 @@ def send_to_socket(payload: dict[str, object]) -> bool:
 def append_fallback(payload: dict[str, object]) -> None:
     queue_path = Path(FALLBACK_QUEUE_PATH)
     queue_path.parent.mkdir(parents=True, exist_ok=True)
+    os.chmod(queue_path.parent, 0o2770)
     line = json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n"
-    fd = os.open(queue_path, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600)
+    fd = os.open(queue_path, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o660)
     try:
         os.write(fd, line.encode("utf-8"))
     finally:
         os.close(fd)
+    os.chmod(queue_path, 0o660)
 
 
 def main() -> int:

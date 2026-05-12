@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-3 mb-4">
+  <div class="col-12 col-md-4">
+    <div class="card h-100"><div class="card-body">
+      <div class="text-secondary">Aktive Benutzer</div>
+      <div class="metric">{{ users | selectattr("active") | list | length }}</div>
+    </div></div>
+  </div>
+  <div class="col-12 col-md-4">
+    <div class="card h-100"><div class="card-body">
+      <div class="text-secondary">Geloggte Alerts</div>
+      <div class="metric">{{ notifications | length }}</div>
+    </div></div>
+  </div>
+  <div class="col-12 col-md-4">
+    <div class="card h-100"><div class="card-body">
+      <div class="text-secondary">Queue-Dateigröße</div>
+      <div class="metric">{{ queue_size }} B</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-xl-8">
+    <div class="card">
+      <div class="card-header bg-white fw-semibold">Letzte Alerts</div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead><tr><th>Zeit</th><th>Host</th><th>Service</th><th>Status</th><th>Gesendet</th></tr></thead>
+          <tbody>
+          {% for event in notifications %}
+            <tr>
+              <td class="text-nowrap">{{ event.created_at }}</td>
+              <td>{{ event.hostname }}</td>
+              <td>{{ event.service_description }}</td>
+              <td>{{ event.from_state }} → {{ event.to_state }}</td>
+              <td>{{ event.sent_count or 0 }}/{{ event.delivery_count or 0 }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="5" class="text-secondary">Noch keine Alerts geloggt.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-xl-4">
+    <div class="card">
+      <div class="card-header bg-white fw-semibold">Schnellzugriff</div>
+      <div class="list-group list-group-flush">
+        <a class="list-group-item list-group-item-action" href="{{ url_for('monitoring') }}">Host/Service abfragen</a>
+        <a class="list-group-item list-group-item-action" href="{{ url_for('problems') }}">Problemübersicht öffnen</a>
+        <a class="list-group-item list-group-item-action" href="{{ url_for('admin_notifications') }}">Alert-Log ansehen</a>
+        <a class="list-group-item list-group-item-action" href="{{ url_for('admin_users') }}">Benutzer verwalten</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

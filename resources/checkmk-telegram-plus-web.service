@@ -1,0 +1,18 @@
+[Unit]
+Description=CheckMK Telegram Plus Web UI
+After=network-online.target checkmk-telegram-plus-bridge-<omd_site>.service
+Wants=network-online.target
+Requires=checkmk-telegram-plus-bridge-<omd_site>.service
+
+[Service]
+User=<app_user>
+Group=<app_user>
+WorkingDirectory=<app_dir>
+Environment=CHECKMK_TELEGRAM_PLUS_CONFIG=<config_path>
+Environment=PYTHONPATH=<pythonpath>
+ExecStart=<venv_python> <app_dir>/web_app.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

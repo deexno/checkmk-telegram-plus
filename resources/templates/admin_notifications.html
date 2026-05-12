@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-3">
+  <div class="col-12 col-xl-8">
+    <div class="card">
+      <div class="card-header bg-white fw-semibold">Alert-Log</div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead><tr><th>Zeit</th><th>Typ</th><th>Host</th><th>Service</th><th>Status</th><th>Delivery</th></tr></thead>
+          <tbody>
+          {% for event in notifications %}
+            <tr>
+              <td class="text-nowrap">{{ event.created_at }}</td>
+              <td>{{ event.notification_type }}</td>
+              <td>{{ event.hostname }}</td>
+              <td>{{ event.service_description }}</td>
+              <td>{{ event.from_state }} → {{ event.to_state }}</td>
+              <td><a href="{{ url_for('admin_notifications', event_id=event.event_id) }}">{{ event.sent_count or 0 }}/{{ event.delivery_count or 0 }}</a></td>
+            </tr>
+          {% else %}
+            <tr><td colspan="6" class="text-secondary">Noch keine Alerts.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-xl-4">
+    <div class="card">
+      <div class="card-header bg-white fw-semibold">Zustellungen</div>
+      <div class="card-body">
+        {% if selected_event_id %}
+          <p class="small text-secondary text-break">{{ selected_event_id }}</p>
+          {% for delivery in deliveries %}
+            <div class="border-bottom py-2">
+              <div><strong>{{ delivery.status }}</strong> an {{ delivery.username or delivery.telegram_id }}</div>
+              <div class="small text-secondary">{{ delivery.sent_at }}</div>
+              {% if delivery.error %}<div class="small text-danger">{{ delivery.error }}</div>{% endif %}
+            </div>
+          {% else %}
+            <p class="text-secondary">Keine Zustellungen für dieses Event.</p>
+          {% endfor %}
+        {% else %}
+          <p class="text-secondary mb-0">Delivery-Zähler anklicken, um Details zu sehen.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

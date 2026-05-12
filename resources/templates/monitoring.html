@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card mb-4">
+  <div class="card-body">
+    <h1 class="h4 mb-3">Monitoring</h1>
+    {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+    <form method="get" class="row g-3">
+      <div class="col-12 col-lg-4">
+        <label class="form-label">Hostgruppe</label>
+        <select class="form-select" name="hostgroup" onchange="this.form.submit()">
+          <option value="">Auswählen</option>
+          {% for group in hostgroups %}
+            <option value="{{ group }}" {% if group == selected_hostgroup %}selected{% endif %}>{{ group }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-lg-4">
+        <label class="form-label">Host</label>
+        <select class="form-select" name="host" onchange="this.form.submit()" {% if not hosts %}disabled{% endif %}>
+          <option value="">Auswählen</option>
+          {% for host in hosts %}
+            <option value="{{ host }}" {% if host == selected_host %}selected{% endif %}>{{ host }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-lg-4">
+        <label class="form-label">Service</label>
+        <select class="form-select" name="service" onchange="this.form.submit()" {% if not services %}disabled{% endif %}>
+          <option value="">Optional auswählen</option>
+          {% for service in services %}
+            <option value="{{ service.description }}" {% if service.description == selected_service %}selected{% endif %}>
+              {{ service.description }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if host_status is not none %}
+<div class="row g-3">
+  <div class="col-12 col-xl-4">
+    <div class="card h-100"><div class="card-body">
+      <div class="text-secondary mb-1">Hoststatus</div>
+      <h2 class="h4">{{ selected_host }} {{ host_status | state | safe }}</h2>
+    </div></div>
+  </div>
+  <div class="col-12 col-xl-8">
+    <div class="card">
+      <div class="card-header bg-white fw-semibold">Services</div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead><tr><th>Service</th><th>Status</th></tr></thead>
+          <tbody>
+          {% for service in services %}
+            <tr><td>{{ service.description }}</td><td>{{ service.state | state | safe }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if service_details %}
+<div class="card mt-3">
+  <div class="card-header bg-white fw-semibold">{{ selected_host }} / {{ selected_service }}</div>
+  <div class="card-body">
+    <p>{{ service_details.state | state | safe }}</p>
+    <h2 class="h6">Summary</h2>
+    <pre class="code-output bg-light border rounded p-3">{{ service_details.plugin_output }}</pre>
+    <h2 class="h6">Details</h2>
+    <pre class="code-output bg-light border rounded p-3">{{ service_details.long_plugin_output }}</pre>
+    <h2 class="h6">Metriken</h2>
+    <pre class="code-output bg-light border rounded p-3">{{ service_details.perf_data }}</pre>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

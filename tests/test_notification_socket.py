@@ -1,6 +1,7 @@
 import json
 import os
 import socket
+import stat
 import sys
 import tempfile
 import threading
@@ -82,10 +83,11 @@ class NotificationSocketTest(unittest.TestCase):
             )
             self.assertEqual(service.drain_fallback_once(), 1)
             self.assertEqual(read_jsonl(fallback_path), [])
+            if os.name == "posix":
+                self.assertEqual(stat.S_IMODE(os.stat(fallback_path).st_mode), 0o660)
             with open(queue_path, "r", encoding="utf-8") as handle:
                 self.assertIn(str(payload["event_id"]), handle.read())
 
 
 if __name__ == "__main__":
     unittest.main()
-

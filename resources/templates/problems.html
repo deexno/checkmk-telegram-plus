@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card mb-4">
+  <div class="card-body">
+    <h1 class="h4 mb-3">Problemübersicht</h1>
+    {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+    <form method="get" class="row g-3">
+      <div class="col-12 col-lg-6">
+        <label class="form-label">Hostgruppe</label>
+        <select class="form-select" name="hostgroup" onchange="this.form.submit()">
+          <option value="">Auswählen</option>
+          {% for group in hostgroups %}
+            <option value="{{ group }}" {% if group == selected_hostgroup %}selected{% endif %}>{{ group }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-xl-5">
+    <div class="card">
+      <div class="card-header bg-white fw-semibold">Host-Probleme</div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead><tr><th>Host</th><th>Status</th></tr></thead>
+          <tbody>
+          {% for host in host_problems %}
+            <tr><td>{{ host.hostname }}</td><td>{{ host.state | state | safe }}</td></tr>
+          {% else %}
+            <tr><td colspan="2" class="text-secondary">Keine Host-Probleme.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-xl-7">
+    <div class="card">
+      <div class="card-header bg-white fw-semibold">Service-Probleme</div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead><tr><th>Host</th><th>Service</th><th>Status</th></tr></thead>
+          <tbody>
+          {% for service in service_problems %}
+            <tr>
+              <td>{{ service.hostname }}</td>
+              <td>{{ service.description }}</td>
+              <td>{{ service.state | state | safe }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="3" class="text-secondary">Keine Service-Probleme.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

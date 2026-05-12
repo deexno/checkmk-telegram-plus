@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <div class="card-header bg-white fw-semibold">Konfiguration</div>
+  <div class="card-body">
+    <p class="text-secondary">Quelle: <code>{{ config_path }}</code>. Secrets werden maskiert.</p>
+    <div class="accordion" id="configAccordion">
+      {% for section, values in safe_config.items() %}
+      <div class="accordion-item">
+        <h2 class="accordion-header">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#cfg-{{ loop.index }}">
+            [{{ section }}]
+          </button>
+        </h2>
+        <div id="cfg-{{ loop.index }}" class="accordion-collapse collapse" data-bs-parent="#configAccordion">
+          <div class="accordion-body">
+            <dl class="row mb-0">
+              {% for key, value in values.items() %}
+                <dt class="col-12 col-md-4">{{ key }}</dt>
+                <dd class="col-12 col-md-8"><code>{{ value }}</code></dd>
+              {% endfor %}
+            </dl>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

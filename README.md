@@ -65,7 +65,17 @@ allow_legacy_url_auth = no
 
 The local `http://127.0.0.1/<omd_site_name>` URL is recommended for the graph export. The bot first tries CheckMK's legacy internal graph renderer. If that renderer is not available, it tries CheckMK's notification graph endpoint `ajax_graph_images.py` and then the public `graph_image.py` PNG export endpoint. The bridge authenticates with HTTP auth headers so secrets are not sent in the URL. If a loopback HTTPS URL fails because the certificate is not valid for `127.0.0.1` or `localhost`, the bridge retries over local HTTP and, if the local web server redirects back to HTTPS, as a last resort retries the loopback HTTPS request without certificate verification. This relaxed TLS fallback is only used for loopback hosts. Missing graph support will not stop the bot or bridge service.
 
+The CheckMK automation user used for graph export does not need to be a full administrator, but it must be allowed to see the requested hosts and services and to query graph data. Recommended setup:
+
+- Create a dedicated automation user, for example `telegram_plus`.
+- Assign a custom role based on `Normal monitoring user` or `Guest user`.
+- Give the user visibility for the monitored objects, either by assigning the right contact groups or by enabling the role permission `See all hosts and services`.
+- On newer CheckMK versions, enable the role permission `Query metric backend from custom graph editor`. CheckMK Werk [#19343](https://checkmk.com/werk/19343) documents that graph view, edit and AJAX endpoints require this permission.
+- The graph collection permissions such as `Customize and use graph collections`, `Publish graph collections` or `See user graph collections` are not sufficient for this bot by themselves. They control saved graph collection management, not whether the automation user may render service metric graphs.
+
 Existing installations are migrated automatically. Legacy configuration files are backed up before changes are made, and old site-local application files are moved to a `legacy-<timestamp>` directory below `/omd/sites/<omd_site_name>/local/share/checkmk-telegram-plus`.
+
+The installer also repairs notification handoff permissions. The CheckMK site user writes temporary fallback notifications below `/var/lib/checkmk-telegram-plus/<omd_site_name>/fallback`, while the external app drains that queue. If notifications show `Permission denied` for that fallback path after an upgrade, rerun the installer and restart the CheckMK site so already-running CheckMK processes pick up the `checkmk-telegram-plus` group membership.
 
 Recommended one-line installation command:
 ```bash
