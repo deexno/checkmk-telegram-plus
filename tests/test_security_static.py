@@ -52,8 +52,11 @@ class SecurityStaticTest(unittest.TestCase):
         self.assertIn("SSLCertVerificationError", bridge)
         self.assertIn("_create_unverified_context", bridge)
         self.assertIn("is_loopback_host", bridge)
+        self.assertIn("Authorization", bridge)
+        self.assertIn("allow_legacy_url_auth", bridge)
         self.assertIn("[checkmk_web]", config)
         self.assertIn("automation_secret", config)
+        self.assertIn("allow_legacy_url_auth = no", config)
 
     def test_bridge_client_timeout_allows_slow_agent_checks(self):
         text = (

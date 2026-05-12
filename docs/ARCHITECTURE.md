@@ -64,7 +64,9 @@ Graph rendering is version tolerant:
    `graph_image.py` PNG export endpoint.
 3. The web export requires `[checkmk_web]` settings in
    `/etc/checkmk-telegram-plus/<site>.ini`: `base_url`, `automation_user` and
-   `automation_secret`.
+   `automation_secret`. The bridge uses HTTP auth headers by default so secrets
+   are not embedded in URLs. Legacy URL authentication can be enabled explicitly
+   with `allow_legacy_url_auth = yes` for old Checkmk installations if needed.
 4. The recommended `base_url` is the local HTTP URL
    `http://127.0.0.1/<site>`. If a loopback HTTPS URL fails certificate
    verification because the certificate is not valid for `127.0.0.1`,

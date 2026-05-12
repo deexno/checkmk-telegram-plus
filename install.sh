@@ -368,6 +368,7 @@ fields = {
     "cfg_web_automation_user": ("checkmk_web", "automation_user"),
     "cfg_web_automation_secret": ("checkmk_web", "automation_secret"),
     "cfg_web_graph_count": ("checkmk_web", "graph_count"),
+    "cfg_web_allow_legacy_url_auth": ("checkmk_web", "allow_legacy_url_auth"),
 }
 
 for variable, (section, key) in fields.items():
@@ -418,16 +419,18 @@ fi
 web_automation_user="${cfg_web_automation_user:-}"
 web_automation_secret="${cfg_web_automation_secret:-}"
 web_graph_count="${cfg_web_graph_count:-3}"
+web_allow_legacy_url_auth="${cfg_web_allow_legacy_url_auth:-no}"
 
 if [[ "$review_web" =~ ^[Yy]$ ]]; then
     web_base_url=$(prompt_value "Checkmk Web base URL" "$web_base_url" "http://127.0.0.1/$omd_site" false)
     web_automation_user=$(prompt_value "Checkmk automation user" "$web_automation_user" "" false)
     web_automation_secret=$(prompt_secret_value "Checkmk automation secret" "$web_automation_secret" false)
     web_graph_count=$(prompt_value "Number of graphs to fetch per service" "$web_graph_count" "3" false)
+    web_allow_legacy_url_auth=$(prompt_value "Allow legacy URL auth for graph export? [yes/no]" "$web_allow_legacy_url_auth" "no" false)
 fi
 
 info "Updating external configuration..."
-python3 - "$config_path" "$omd_site" "$api_token" "$bot_password" "$selected_version" "$state_dir" "$log_dir" "$run_dir" "$socket_path" "$bridge_socket_path" "$notification_queue" "$fallback_queue" "$language" "$allowed_users" "$admin_users" "$notifications_loud" "$notifications_silent" "$openai_model" "$openai_token" "$web_base_url" "$web_automation_user" "$web_automation_secret" "$web_graph_count" <<'PY'
+python3 - "$config_path" "$omd_site" "$api_token" "$bot_password" "$selected_version" "$state_dir" "$log_dir" "$run_dir" "$socket_path" "$bridge_socket_path" "$notification_queue" "$fallback_queue" "$language" "$allowed_users" "$admin_users" "$notifications_loud" "$notifications_silent" "$openai_model" "$openai_token" "$web_base_url" "$web_automation_user" "$web_automation_secret" "$web_graph_count" "$web_allow_legacy_url_auth" <<'PY'
 import configparser
 import sys
 from pathlib import Path
@@ -456,6 +459,7 @@ from pathlib import Path
     web_automation_user,
     web_automation_secret,
     web_graph_count,
+    web_allow_legacy_url_auth,
 ) = sys.argv[1:]
 
 path = Path(config_path)
@@ -518,6 +522,7 @@ config.set("checkmk_web", "base_url", web_base_url)
 config.set("checkmk_web", "automation_user", web_automation_user)
 config.set("checkmk_web", "automation_secret", web_automation_secret)
 config.set("checkmk_web", "graph_count", str(graph_count_int))
+config.set("checkmk_web", "allow_legacy_url_auth", web_allow_legacy_url_auth or "no")
 
 ensure("openai")
 config.set("openai", "model", openai_model or "gpt-4o-mini")

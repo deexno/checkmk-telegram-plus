@@ -172,6 +172,9 @@ def read_web_config() -> dict[str, str]:
             "checkmk_web", "automation_secret", fallback=""
         ),
         "graph_count": parser.get("checkmk_web", "graph_count", fallback="3"),
+        "allow_legacy_url_auth": parser.get(
+            "checkmk_web", "allow_legacy_url_auth", fallback="no"
+        ),
     }
 
 
@@ -180,6 +183,12 @@ def fetch_graphs_from_web(hostname: str, service: str) -> list[str]:
     base_url = config.get("base_url", "")
     username = config.get("automation_user", "")
     secret = config.get("automation_secret", "")
+    allow_legacy_url_auth = config.get("allow_legacy_url_auth", "").lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
     if not base_url or not username or not secret:
         raise RuntimeError(
             "checkmk_web.base_url, automation_user and automation_secret are not "
@@ -196,21 +205,25 @@ def fetch_graphs_from_web(hostname: str, service: str) -> list[str]:
     for graph_index in range(graph_count):
         for request_object in graph_image_requests(hostname, service, graph_index):
             for candidate_base_url, verify_tls in graph_fetch_attempts(base_url):
-                try:
-                    graphs.append(
-                        fetch_graph_image(
-                            candidate_base_url,
-                            username,
-                            secret,
-                            request_object,
-                            verify_tls=verify_tls,
+                for auth_method in graph_auth_methods(allow_legacy_url_auth):
+                    try:
+                        graphs.append(
+                            fetch_graph_image(
+                                candidate_base_url,
+                                username,
+                                secret,
+                                request_object,
+                                verify_tls=verify_tls,
+                                auth_method=auth_method,
+                            )
                         )
-                    )
-                    break
-                except Exception as exc:
-                    errors.append(str(exc))
-                    if not should_retry_graph_fetch(candidate_base_url, exc):
                         break
+                    except Exception as exc:
+                        errors.append(str(exc))
+                        if not should_try_next_graph_auth_method(exc):
+                            break
+                if len(graphs) > graph_index:
+                    break
             if len(graphs) > graph_index:
                 break
         if graph_index == 0 and not graphs:
@@ -230,6 +243,26 @@ def graph_fetch_attempts(base_url: str) -> list[tuple[str, bool]]:
             (base_url, False),
         ]
     return [(base_url, True)]
+
+
+def graph_auth_methods(allow_legacy_url_auth: bool) -> list[str]:
+    methods = ["basic", "bearer"]
+    if allow_legacy_url_auth:
+        methods.append("url")
+    return methods
+
+
+def should_try_next_graph_auth_method(exc: Exception) -> bool:
+    text = str(exc).lower()
+    return (
+        "401" in text
+        or "403" in text
+        or "login" in text
+        or "invalid user" in text
+        or "invalid u" in text
+        or "not authorized" in text
+        or "permission" in text
+    )
 
 
 def is_loopback_host(hostname: str) -> bool:
@@ -255,26 +288,37 @@ def graph_image_requests(hostname: str, service: str, graph_index: int) -> list[
         "show_title": True,
         "size": [800, 250],
     }
+    modern_spec = {
+        "site": SITE,
+        "host_name": hostname,
+        "service_description": service,
+        "graph_type": "template",
+    }
+    modern_spec_with_index = dict(modern_spec, graph_index=graph_index)
+    legacy_spec_with_index = {
+        "site": SITE,
+        "host_name": hostname,
+        "service_description": service,
+        "graph_index": graph_index,
+    }
     return [
         {
-            "specification": {
-                "site": SITE,
-                "host_name": hostname,
-                "service_description": service,
-                "graph_type": "template",
-                "graph_index": graph_index,
-            },
+            "specification": modern_spec,
+        },
+        {
+            "specification": modern_spec_with_index,
+        },
+        {
+            "specification": modern_spec_with_index,
             "render_options": render_options,
+        },
+        {
+            "specification": ["template", legacy_spec_with_index],
         },
         {
             "specification": [
                 "template",
-                {
-                    "site": SITE,
-                    "host_name": hostname,
-                    "service_description": service,
-                    "graph_index": graph_index,
-                },
+                legacy_spec_with_index,
             ],
             "render_options": render_options,
         },
@@ -288,16 +332,23 @@ def fetch_graph_image(
     request_object: dict[str, Any],
     *,
     verify_tls: bool,
+    auth_method: str,
 ) -> str:
-    query = parse.urlencode(
-        {
-            "_username": username,
-            "_secret": secret,
-            "request": json.dumps(request_object, separators=(",", ":")),
-        }
-    )
+    query_values = {"request": json.dumps(request_object, separators=(",", ":"))}
+    if auth_method == "url":
+        query_values["_username"] = username
+        query_values["_secret"] = secret
+    query = parse.urlencode(query_values)
     url = f"{base_url}/check_mk/graph_image.py?{query}"
-    req = request.Request(url, headers={"Accept": "image/png"})
+    headers = {"Accept": "image/png"}
+    if auth_method == "basic":
+        token = base64.b64encode(f"{username}:{secret}".encode("utf-8")).decode(
+            "ascii"
+        )
+        headers["Authorization"] = f"Basic {token}"
+    elif auth_method == "bearer":
+        headers["Authorization"] = f"Bearer {username} {secret}"
+    req = request.Request(url, headers=headers)
     context = None
     if parse.urlsplit(base_url).scheme == "https" and not verify_tls:
         context = ssl._create_unverified_context()
@@ -307,20 +358,34 @@ def fetch_graph_image(
             body = response.read()
     except error.HTTPError as exc:
         body = exc.read(500).decode("utf-8", "replace")
-        raise RuntimeError(f"graph_image.py returned HTTP {exc.code}: {body}") from exc
+        raise RuntimeError(
+            f"graph_image.py returned HTTP {exc.code} using {auth_method} auth: "
+            f"{short_html_error(body)}"
+        ) from exc
     except error.URLError as exc:
         verification = " without TLS verification" if not verify_tls else ""
         raise RuntimeError(
-            f"graph_image.py request failed{verification}: {exc.reason}"
+            f"graph_image.py request failed using {auth_method} auth"
+            f"{verification}: {exc.reason}"
         ) from exc
 
     if "image" not in content_type.lower() or not body.startswith(b"\x89PNG"):
-        preview = body[:200].decode("utf-8", "replace")
+        preview = short_html_error(body.decode("utf-8", "replace"))
         raise RuntimeError(
-            "graph_image.py did not return a PNG image "
+            f"graph_image.py did not return a PNG image using {auth_method} auth "
             f"(Content-Type: {content_type}): {preview}"
         )
     return base64.b64encode(body).decode("ascii")
+
+
+def short_html_error(text: str) -> str:
+    lower = text.lower()
+    title_start = lower.find("<title>")
+    title_end = lower.find("</title>", title_start + 7)
+    if title_start >= 0 and title_end > title_start:
+        return text[title_start + 7 : title_end].strip()[:300]
+    compact = " ".join(text.split())
+    return compact[:300]
 
 
 def run_cmk_check(params: dict[str, Any]) -> dict[str, Any]:
