@@ -5,6 +5,7 @@ Wants=network-online.target
 Requires=checkmk-telegram-plus-bridge-<omd_site>.service
 
 [Service]
+PermissionsStartOnly=true
 ExecStartPre=/bin/mkdir -p <run_dir>
 ExecStartPre=/bin/chown <app_user>:<app_user> <run_dir>
 User=<app_user>

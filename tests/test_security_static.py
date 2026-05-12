@@ -29,6 +29,7 @@ class SecurityStaticTest(unittest.TestCase):
         text = (
             ROOT / "resources" / "checkmk-telegram-plus.service"
         ).read_text(encoding="utf-8")
+        self.assertIn("PermissionsStartOnly=true", text)
         self.assertIn("User=<app_user>", text)
         self.assertIn("Environment=PYTHONPATH=<pythonpath>", text)
 
