@@ -35,7 +35,8 @@ from cmk.notification_plugins.utils import render_cmk_graphs
 
 # Read configuration file
 config = configparser.RawConfigParser()
-config.read("config.ini")
+CONFIG_PATH = os.environ.get("CHECKMK_TELEGRAM_PLUS_CONFIG", "config.ini")
+config.read(CONFIG_PATH)
 
 # Get Open Monitoring Distribution (OMD) site
 omd_site = config["check_mk"]["site"]
@@ -44,9 +45,15 @@ omd_site_dir = os.path.join("/", "omd", "sites", omd_site)
 logger = logging.getLogger(__name__)
 formatter = logging.Formatter("%(asctime)s:%(levelname)s:%(funcName)s:%(message)s")
 
-log_file_path = os.path.join(
-    "/", "omd", "sites", omd_site, "var", "log", "telegram-plus.log"
+log_dir = (
+    config.get("paths", "log_dir", fallback="")
+    if config.has_section("paths")
+    else ""
 )
+if not log_dir:
+    log_dir = os.path.join("/", "omd", "sites", omd_site, "var", "log")
+Path(log_dir).mkdir(parents=True, exist_ok=True)
+log_file_path = os.path.join(log_dir, "telegram-plus.log")
 log_file_handler = logging.FileHandler(log_file_path, mode="a")
 log_file_handler.setLevel(logging.DEBUG)
 log_file_handler.setFormatter(formatter)
@@ -94,12 +101,64 @@ livestatus_socket_path = f"unix:{omd_site_dir}/tmp/run/live"
 livestatus_connection = livestatus.SingleSiteConnection(livestatus_socket_path)
 
 # Set path of query for notifications
-notify_query_folder = os.path.join(omd_site_dir, "tmp", "telegram_plus")
-notify_query_path = os.path.join(notify_query_folder, "notifications.queue")
+notify_query_path = (
+    config.get("paths", "notification_queue", fallback="")
+    if config.has_section("paths")
+    else ""
+)
+if not notify_query_path:
+    notify_query_folder = os.path.join(omd_site_dir, "tmp", "telegram_plus")
+    notify_query_path = os.path.join(notify_query_folder, "notifications.queue")
+notify_query_folder = os.path.dirname(notify_query_path)
 # Create Query Path if it does not exist
 Path(notify_query_folder).mkdir(parents=True, exist_ok=True)
 
 notifcation_queue = fqueue.Queue(notify_query_path)
+notification_socket_service = None
+
+
+def start_notification_socket_service():
+    """Start the external-app Unix socket used by the Checkmk adapter."""
+    global notification_socket_service
+    if notification_socket_service is not None:
+        return
+    try:
+        from checkmk_telegram_plus.api.notification_socket import (
+            NotificationSocketService,
+        )
+
+        socket_path = (
+            config.get(
+                "paths",
+                "socket_path",
+                fallback=f"/run/checkmk-telegram-plus/{omd_site}.sock",
+            )
+            if config.has_section("paths")
+            else f"/run/checkmk-telegram-plus/{omd_site}.sock"
+        )
+        fallback_queue_path = (
+            config.get("paths", "fallback_queue", fallback="")
+            if config.has_section("paths")
+            else ""
+        )
+        notification_socket_service = NotificationSocketService(
+            socket_path=socket_path,
+            legacy_queue_path=notify_query_path,
+            fallback_queue_path=fallback_queue_path or None,
+            logger=logger,
+        )
+        threading.Thread(
+            target=notification_socket_service.serve_forever,
+            name="telegram-plus-notification-socket",
+            daemon=True,
+        ).start()
+        threading.Thread(
+            target=notification_socket_service.drain_fallback_forever,
+            name="telegram-plus-fallback-drain",
+            daemon=True,
+        ).start()
+    except Exception as e:
+        logger.critical("Could not start notification socket service: %s", e)
 
 gpt = None
 
@@ -226,7 +285,7 @@ def log_unauthenticated_access(username, command):
 # Method to check if a user is authenticated
 def is_user_authenticated(user_id):
     # Read the config file again so that no information is missing.
-    config.read("config.ini")
+    config.read(CONFIG_PATH)
 
     # Check if the user is in the allowed_users list
     if str(user_id) in config["telegram_bot"]["allowed_users"]:
@@ -253,13 +312,13 @@ def get_state_details(val):
 def update_config(section, key, value):
     config.set(section, key, value)
 
-    with open("config.ini", "w") as configfile:
+    with open(CONFIG_PATH, "w") as configfile:
         config.write(configfile)
 
 
 # Method to shorten the code and make translation easier
 def translate(text):
-    config.read("config.ini")
+    config.read(CONFIG_PATH)
 
     # If the language is not present (e.g. due to an upgrade from an old
     # version to a new one), create it
@@ -953,7 +1012,7 @@ async def get_notification_settings(
 ) -> int:
     if is_user_authenticated(update.effective_user.id):
         # Read the config file to get the current notification settings
-        config.read("config.ini")
+        config.read(CONFIG_PATH)
         user_id = update.effective_user.id
 
         # Determine whether the user is currently subscribed to loud and/or
@@ -997,7 +1056,7 @@ async def change_notifications_setting(
 ) -> int:
     try:
         # Read the configuration file to get the current notification settings
-        config.read("config.ini")
+        config.read(CONFIG_PATH)
 
         # Get the user's selection from the keyboard
         selection = update.message.text
@@ -1178,7 +1237,7 @@ async def post_print_service_graphs(
 
 async def send_automatic_notification(context: ContextTypes.DEFAULT_TYPE):
     # Read the notification details from the file passed via the job scheduler
-    notificaion_variables = context.job.data.split(";")
+    notificaion_variables = context.job.data.split(";", 7)
     (
         type,
         ip,
@@ -1192,7 +1251,7 @@ async def send_automatic_notification(context: ContextTypes.DEFAULT_TYPE):
 
     # Read the recipient list for the corresponding notification type from the
     # config file
-    config.read("config.ini")
+    config.read(CONFIG_PATH)
     recipient_list = config["telegram_bot"][type].split(",")
 
     # Get the state details in the form of emoji and text for both from_state
@@ -1272,7 +1331,7 @@ async def open_admin_settings(
         if is_user_authenticated(update.effective_user.id):
             # Read the configuration file to get the current
             # notification settings
-            config.read("config.ini")
+            config.read(CONFIG_PATH)
             user_id = update.effective_user.id
 
             admin_users = config["telegram_bot"].get("admin_users", "")
@@ -1824,7 +1883,7 @@ async def update_language(
 async def message_all_users(context: ContextTypes.DEFAULT_TYPE):
     # Read the recipient list for the corresponding notification type from the
     # config file
-    config.read("config.ini")
+    config.read(CONFIG_PATH)
     recipient_list = []
 
     for recipient in config["telegram_bot"]["allowed_users"].split(","):
@@ -2467,5 +2526,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    start_notification_socket_service()
     threading.Thread(target=notifcation_listener).start()
     main()

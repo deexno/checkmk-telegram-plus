@@ -36,6 +36,19 @@ The installer asks for the following values:<br>
 - api_token (You get this token from the BotFather of Telegram)
 - bot_password (This can be a password of your choice, which will be used later to authenticate to the bot)
 
+The installer uses a split architecture. Only a minimal notification adapter is installed into the CheckMK site. The application, virtual environment and third-party Python dependencies are installed outside CheckMK:
+
+```text
+/opt/checkmk-telegram-plus/app
+/opt/checkmk-telegram-plus/venv
+/etc/checkmk-telegram-plus/<omd_site_name>.ini
+/var/lib/checkmk-telegram-plus/<omd_site_name>
+/var/log/checkmk-telegram-plus
+/run/checkmk-telegram-plus/<omd_site_name>.sock
+```
+
+Existing installations are migrated automatically. Legacy configuration files are backed up before changes are made, and old site-local application files are moved to a `legacy-<timestamp>` directory below `/omd/sites/<omd_site_name>/local/share/checkmk-telegram-plus`.
+
 Recommended one-line installation command:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/deexno/checkmk-telegram-plus/refs/heads/main/install.sh | sudo bash
@@ -69,6 +82,10 @@ systemctl daemon-reload
 ```bash
 rm -Rf /omd/sites/$omd_site_name/local/share/check_mk/notifications/telegram_plus_notify_listener
 rm -Rf /omd/sites/$omd_site_name/local/share/checkmk-telegram-plus
+rm -Rf /etc/checkmk-telegram-plus/$omd_site_name.ini
+rm -Rf /var/lib/checkmk-telegram-plus/$omd_site_name
+rm -Rf /var/log/checkmk-telegram-plus
+# Remove /opt/checkmk-telegram-plus only if no other CheckMK site uses this bot.
 ```
 
 # Usage
@@ -88,7 +105,7 @@ If you only want to activate the admin settings ONLY for certain users, follow t
 1. Open the config file of the bot
 ```
 omd_site_name=<omd_site_name>
-nano /omd/sites/$omd_site_name/local/share/checkmk-telegram-plus/config.ini
+nano /etc/checkmk-telegram-plus/$omd_site_name.ini
 ```
 2. If the option ‘admin_users’ does not yet exist in the config file, create it under the [telegram_bot] tab:
 ```
@@ -117,8 +134,7 @@ systemctl restart checkmk-telegram-plus-$omd_site_name.service
 1. Open the configfile
 ```bash
 omd_site_name=<omd_site_name>
-telegram_plus_dir=/omd/sites/$omd_site_name/local/share/checkmk-telegram-plus
-nano $telegram_plus_dir/config.ini
+nano /etc/checkmk-telegram-plus/$omd_site_name.ini
 ```
 
 2. Store your API key from openai under ‘token’. Your config file should then look like this:

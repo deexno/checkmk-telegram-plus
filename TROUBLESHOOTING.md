@@ -76,7 +76,7 @@ If you enter the wrong API key during installation, the bot will not start becau
 
 ```bash
 omd_site_name=<omd_site_name> # CHANGE <omd_site_name> to the name of your OMD site
-cat /opt/omd/sites/$omd_site_name/local/share/checkmk-telegram-plus/config.ini | grep api_token
+cat /etc/checkmk-telegram-plus/$omd_site_name.ini | grep api_token
 ```
 
 Compare the output with the key you received from the Bot Father. If it is not the same, uninstall and install the bot. The uninstallation is necessary because, for safety reasons, the API key is only set during the first installation.

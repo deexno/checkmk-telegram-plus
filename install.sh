@@ -28,6 +28,11 @@ Optional non-interactive usage:
 
 The installer asks for the CheckMK site name, Telegram API token, bot password,
 and version to install. A branch install option is available for testing only.
+
+This installer uses the split architecture:
+  - Checkmk only receives a minimal notification adapter.
+  - The app and Python dependencies are installed below /opt/checkmk-telegram-plus.
+  - Runtime config/state/logs are stored below /etc, /var/lib, /var/log and /run.
 EOF
 }
 
@@ -76,7 +81,7 @@ if [ ! -r /dev/tty ]; then
     error "This installer needs an interactive terminal."
 fi
 
-programs=(curl python3 tar mktemp runuser pip3 sed systemctl)
+programs=(curl python3 tar mktemp runuser sed systemctl)
 
 for program in "${programs[@]}"; do
     if ! command -v "$program" > /dev/null 2>&1; then
@@ -105,9 +110,22 @@ while [ -z "$bot_password" ]; do
 done
 
 omd_site_dir="/omd/sites/$omd_site"
-telegram_plus_dir="$omd_site_dir/local/share/checkmk-telegram-plus"
-telegram_plus_service_name="checkmk-telegram-plus-$omd_site.service"
 notification_plugin_dir="$omd_site_dir/local/share/check_mk/notifications"
+site_share_dir="$omd_site_dir/local/share/checkmk-telegram-plus"
+
+external_root="/opt/checkmk-telegram-plus"
+app_dir="$external_root/app"
+venv_dir="$external_root/venv"
+config_dir="/etc/checkmk-telegram-plus"
+config_path="$config_dir/$omd_site.ini"
+state_root="/var/lib/checkmk-telegram-plus"
+state_dir="$state_root/$omd_site"
+log_dir="/var/log/checkmk-telegram-plus"
+run_dir="/run/checkmk-telegram-plus"
+socket_path="$run_dir/$omd_site.sock"
+notification_queue="$state_dir/notifications.queue"
+fallback_queue="$state_dir/fallback/notifications.jsonl"
+telegram_plus_service_name="checkmk-telegram-plus-$omd_site.service"
 
 if [ ! -d "$omd_site_dir" ]; then
     error "The CheckMK site '$omd_site' does not exist at $omd_site_dir."
@@ -208,53 +226,208 @@ for required_file in \
     "$source_dir/resources/telegram_bot.py" \
     "$source_dir/resources/fqueue.py" \
     "$source_dir/resources/checkmk-telegram-plus.service" \
-    "$source_dir/resources/telegram_plus_notify_listener"
+    "$source_dir/checkmk/notifications/telegram_plus_notify_listener" \
+    "$source_dir/src/checkmk_telegram_plus/api/notification_socket.py"
 do
     if [ ! -f "$required_file" ]; then
         error "The selected $selected_source is missing required file: ${required_file#$source_dir/}"
     fi
 done
 
+timestamp=$(date +"%Y%m%d%H%M%S")
 runuser_path=$(command -v runuser)
 omd_site_sed=$(escape_sed_replacement "$omd_site")
-api_token_sed=$(escape_sed_replacement "$api_token")
-bot_password_sed=$(escape_sed_replacement "$bot_password")
-telegram_plus_dir_sed=$(escape_sed_replacement "$telegram_plus_dir")
-runuser_path_sed=$(escape_sed_replacement "$runuser_path")
 selected_version_sed=$(escape_sed_replacement "$selected_version")
+app_dir_sed=$(escape_sed_replacement "$app_dir")
+venv_python_sed=$(escape_sed_replacement "$venv_dir/bin/python")
+pythonpath_sed=$(escape_sed_replacement "$app_dir/src")
+config_path_sed=$(escape_sed_replacement "$config_path")
+run_dir_sed=$(escape_sed_replacement "$run_dir")
+socket_path_sed=$(escape_sed_replacement "$socket_path")
+fallback_queue_sed=$(escape_sed_replacement "$fallback_queue")
+runuser_path_sed=$(escape_sed_replacement "$runuser_path")
 
-info "Installing Python dependencies..."
-mkdir -p "$telegram_plus_dir"
-if ! pip3 install --target="$telegram_plus_dir" -r "$source_dir/resources/requirements.txt" --upgrade; then
-    error "Failed to install Python dependencies. Please check the pip3 output above."
+info "Creating external directories..."
+mkdir -p "$app_dir" "$venv_dir" "$config_dir" "$state_dir/fallback" "$log_dir" "$run_dir" "$site_share_dir/backups"
+chown "$omd_site:$omd_site" "$state_root" "$state_dir" "$state_dir/fallback" "$log_dir" "$run_dir"
+chmod 750 "$state_root" "$state_dir" "$state_dir/fallback" "$log_dir" "$run_dir"
+
+old_config="$site_share_dir/config.ini"
+if [ -f "$old_config" ]; then
+    old_backup="$site_share_dir/backups/config.ini.bak.$timestamp"
+    cp -p "$old_config" "$old_backup"
+    info "Backed up legacy site config to $old_backup"
 fi
-rm -rf "$telegram_plus_dir"/httpx*
 
-info "Preparing configuration..."
-sed -i "s|<omd_site>|$omd_site_sed|g" "$source_dir"/resources/*
-sed -i "s|<api_token>|$api_token_sed|g" "$source_dir"/resources/*
-sed -i "s|<password_for_authentication>|$bot_password_sed|g" "$source_dir"/resources/*
-sed -i "s|<telegram_plus_dir>|$telegram_plus_dir_sed|g" "$source_dir"/resources/*
-sed -i "s|<runuser_path>|$runuser_path_sed|g" "$source_dir"/resources/*
+if [ -f "$config_path" ]; then
+    config_backup="$config_path.bak.$timestamp"
+    cp -p "$config_path" "$config_backup"
+    info "Backed up external config to $config_backup"
+elif [ -f "$old_config" ]; then
+    cp -p "$old_config" "$config_path"
+    info "Migrated legacy config from $old_config to $config_path"
+else
+    cp "$source_dir/resources/config.ini" "$config_path"
+    info "Created new config at $config_path"
+fi
 
-cp -n "$source_dir/resources/config.ini" "$telegram_plus_dir/config.ini"
-grep -qF -- "version" "$telegram_plus_dir/config.ini" || sed -i "s|\[telegram_bot\]|\[telegram_bot\]\nversion = v0.0.0|g" "$telegram_plus_dir/config.ini"
-sed -i "s|.*version.*|version = $selected_version_sed|g" "$telegram_plus_dir/config.ini"
+info "Updating external configuration..."
+python3 - "$config_path" "$omd_site" "$api_token" "$bot_password" "$selected_version" "$state_dir" "$log_dir" "$run_dir" "$socket_path" "$notification_queue" "$fallback_queue" <<'PY'
+import configparser
+import sys
+from pathlib import Path
 
-info "Installing bot files..."
-cp "$source_dir/resources/telegram_bot.py" "$telegram_plus_dir/telegram_bot.py"
-cp "$source_dir/resources/fqueue.py" "$telegram_plus_dir/fqueue.py"
-cp "$source_dir/resources/checkmk-telegram-plus.service" "/etc/systemd/system/$telegram_plus_service_name"
+(
+    config_path,
+    site,
+    api_token,
+    bot_password,
+    version,
+    state_dir,
+    log_dir,
+    run_dir,
+    socket_path,
+    notification_queue,
+    fallback_queue,
+) = sys.argv[1:]
 
-chown -R "$omd_site:$omd_site" "$telegram_plus_dir"
-chmod -R 755 "$telegram_plus_dir"
+path = Path(config_path)
+config = configparser.RawConfigParser()
+config.read(path)
 
-info "Installing CheckMK notification plugin..."
-mkdir -p "$omd_site_dir/tmp/telegram_plus"
-rm -f "$omd_site_dir/tmp/telegram_plus/notifications.queue"
-cp "$source_dir/resources/telegram_plus_notify_listener" "$notification_plugin_dir/telegram_plus_notify_listener"
+def ensure(section):
+    if not config.has_section(section):
+        config.add_section(section)
+
+ensure("telegram_bot")
+ensure("check_mk")
+ensure("paths")
+
+defaults = {
+    "language": "en",
+    "version": "v0.0.0",
+    "allowed_users": "",
+    "admin_users": "",
+    "notifications_loud": "",
+    "notifications_silent": "",
+}
+for key, value in defaults.items():
+    if not config.has_option("telegram_bot", key):
+        config.set("telegram_bot", key, value)
+
+current_token = config.get("telegram_bot", "api_token", fallback="")
+if not current_token or current_token == "<api_token>":
+    config.set("telegram_bot", "api_token", api_token)
+
+current_password = config.get("telegram_bot", "password_for_authentication", fallback="")
+if not current_password or current_password == "<password_for_authentication>":
+    config.set("telegram_bot", "password_for_authentication", bot_password)
+
+config.set("telegram_bot", "version", version)
+config.set("check_mk", "site", site)
+
+path_values = {
+    "state_dir": state_dir,
+    "log_dir": log_dir,
+    "run_dir": run_dir,
+    "socket_path": socket_path,
+    "notification_queue": notification_queue,
+    "fallback_queue": fallback_queue,
+}
+for key, value in path_values.items():
+    config.set("paths", key, value)
+
+if config.has_section("openai"):
+    if config.get("openai", "token", fallback="") == "<openai_token>":
+        config.set("openai", "token", "YOUR-TOKEN")
+
+with path.open("w", encoding="utf-8") as handle:
+    config.write(handle)
+PY
+
+chown root:"$omd_site" "$config_path"
+chmod 640 "$config_path"
+
+info "Installing external app files..."
+rm -rf "$app_dir.new"
+mkdir -p "$app_dir.new/src"
+cp "$source_dir/resources/telegram_bot.py" "$app_dir.new/telegram_bot.py"
+cp "$source_dir/resources/fqueue.py" "$app_dir.new/fqueue.py"
+cp -R "$source_dir/src/checkmk_telegram_plus" "$app_dir.new/src/"
+rm -rf "$app_dir.previous"
+if [ -d "$app_dir" ] && [ "$(find "$app_dir" -mindepth 1 -maxdepth 1 | wc -l)" -gt 0 ]; then
+    mv "$app_dir" "$app_dir.previous"
+else
+    rmdir "$app_dir" 2> /dev/null || true
+fi
+mv "$app_dir.new" "$app_dir"
+chown -R root:root "$external_root"
+chmod -R go-w "$external_root"
+
+info "Creating or updating external Python virtual environment..."
+if [ ! -x "$venv_dir/bin/python" ]; then
+    "$omd_site_dir/bin/python3" -m venv --system-site-packages "$venv_dir" || python3 -m venv "$venv_dir"
+fi
+"$venv_dir/bin/python" -m pip install --upgrade pip
+"$venv_dir/bin/python" -m pip install -r "$source_dir/resources/requirements.txt" --upgrade
+
+info "Installing minimal Checkmk notification adapter..."
+adapter_tmp="$tmp_dir/telegram_plus_notify_listener"
+cp "$source_dir/checkmk/notifications/telegram_plus_notify_listener" "$adapter_tmp"
+sed -i "s|<omd_site>|$omd_site_sed|g" "$adapter_tmp"
+sed -i "s|<socket_path>|$socket_path_sed|g" "$adapter_tmp"
+sed -i "s|<fallback_queue_path>|$fallback_queue_sed|g" "$adapter_tmp"
+cp "$adapter_tmp" "$notification_plugin_dir/telegram_plus_notify_listener"
 chown "$omd_site:$omd_site" "$notification_plugin_dir/telegram_plus_notify_listener"
 chmod 755 "$notification_plugin_dir/telegram_plus_notify_listener"
+
+cat > "$site_share_dir/adapter.ini" <<EOF
+[adapter]
+architecture = split
+site = $omd_site
+config = $config_path
+socket = $socket_path
+fallback_queue = $fallback_queue
+installed_version = $selected_version
+installed_at = $timestamp
+EOF
+chown "$omd_site:$omd_site" "$site_share_dir/adapter.ini"
+chmod 640 "$site_share_dir/adapter.ini"
+
+info "Moving legacy Checkmk-site app files out of the active site path..."
+legacy_dir="$site_share_dir/legacy-$timestamp"
+mkdir -p "$legacy_dir"
+shopt -s nullglob
+for item in "$site_share_dir"/*; do
+    base=$(basename "$item")
+    case "$base" in
+        config.ini|adapter.ini|backups|legacy-*)
+            ;;
+        *)
+            mv "$item" "$legacy_dir/"
+            ;;
+    esac
+done
+shopt -u nullglob
+chown -R "$omd_site:$omd_site" "$site_share_dir"
+chmod -R go-rwx "$site_share_dir"
+if [ "$(find "$legacy_dir" -mindepth 1 -maxdepth 1 | wc -l)" -eq 0 ]; then
+    rmdir "$legacy_dir"
+else
+    info "Moved legacy files to $legacy_dir"
+fi
+
+info "Installing systemd service..."
+service_tmp="$tmp_dir/checkmk-telegram-plus.service"
+cp "$source_dir/resources/checkmk-telegram-plus.service" "$service_tmp"
+sed -i "s|<runuser_path>|$runuser_path_sed|g" "$service_tmp"
+sed -i "s|<omd_site>|$omd_site_sed|g" "$service_tmp"
+sed -i "s|<app_dir>|$app_dir_sed|g" "$service_tmp"
+sed -i "s|<venv_python>|$venv_python_sed|g" "$service_tmp"
+sed -i "s|<pythonpath>|$pythonpath_sed|g" "$service_tmp"
+sed -i "s|<config_path>|$config_path_sed|g" "$service_tmp"
+sed -i "s|<run_dir>|$run_dir_sed|g" "$service_tmp"
+cp "$service_tmp" "/etc/systemd/system/$telegram_plus_service_name"
 
 info "Starting systemd service..."
 if ! systemctl daemon-reload; then
@@ -264,10 +437,18 @@ if ! systemctl enable "$telegram_plus_service_name"; then
     error "Failed to enable systemd service $telegram_plus_service_name."
 fi
 if ! systemctl restart "$telegram_plus_service_name"; then
-    error "Failed to restart systemd service $telegram_plus_service_name. Check the service logs with: journalctl -u $telegram_plus_service_name"
+    error "Failed to restart systemd service $telegram_plus_service_name. Check logs with: journalctl -u $telegram_plus_service_name"
 fi
 
 echo
 echo "Installation completed successfully."
 echo "Installed version: $selected_version"
-echo "Next step: create the CheckMK notification rule as described in the README."
+echo "Architecture: split external app + minimal Checkmk adapter"
+echo "App: $app_dir"
+echo "Virtual environment: $venv_dir"
+echo "Config: $config_path"
+echo "State: $state_dir"
+echo "Logs: $log_dir"
+echo "Socket: $socket_path"
+echo "Rollback data: $site_share_dir/backups and any legacy-* directory"
+echo "Next step: create or keep the CheckMK notification rule as described in the README."

@@ -29,12 +29,13 @@ class Queue(object):
             self.queue = []
             with open(self.file_path, "r", encoding="utf-8") as f:
                 for line in f:
-                    event, item_id, priority, created = line.strip().split(
-                        "|||"
-                    )
+                    parts = line.rstrip("\n").split("|||")
+                    if len(parts) != 4:
+                        continue
+                    event, item_id, priority, created = parts
                     self.queue.append(
                         {
-                            "event": event,
+                            "event": event.replace("\\n", "\n"),
                             "id": item_id,
                             "priority": priority,
                             "created": created,

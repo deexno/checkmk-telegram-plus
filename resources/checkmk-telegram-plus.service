@@ -1,12 +1,19 @@
 [Unit]
 Description=CheckMK Telegram Plus Service
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 # Wait for the OMD Page to fully start
 ExecStartPre=/bin/sleep 60
-# The service must be started as follows, as required environment variables are not set if the service is only executed in the name of this user.
-ExecStart=<runuser_path> -l <omd_site> -c 'cd <telegram_plus_dir> && /omd/sites/<omd_site>/bin/python3 <telegram_plus_dir>/telegram_bot.py'
+ExecStartPre=/bin/mkdir -p <run_dir>
+ExecStartPre=/bin/chown <omd_site>:<omd_site> <run_dir>
+# The app runs from /opt in its own virtual environment. runuser keeps the
+# Checkmk site environment available for Livestatus, graph rendering and OMD
+# commands while third-party dependencies stay out of the Checkmk site tree.
+ExecStart=<runuser_path> -l <omd_site> -c 'cd <app_dir> && CHECKMK_TELEGRAM_PLUS_CONFIG=<config_path> PYTHONPATH=<pythonpath> <venv_python> <app_dir>/telegram_bot.py'
 Restart=always
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
