@@ -195,17 +195,21 @@ def fetch_graphs_from_web(hostname: str, service: str) -> list[str]:
     errors = []
     for graph_index in range(graph_count):
         for request_object in graph_image_requests(hostname, service, graph_index):
-            for candidate_base_url in graph_base_url_candidates(base_url):
+            for candidate_base_url, verify_tls in graph_fetch_attempts(base_url):
                 try:
                     graphs.append(
                         fetch_graph_image(
-                            candidate_base_url, username, secret, request_object
+                            candidate_base_url,
+                            username,
+                            secret,
+                            request_object,
+                            verify_tls=verify_tls,
                         )
                     )
                     break
                 except Exception as exc:
                     errors.append(str(exc))
-                    if not should_retry_graph_fetch_with_http(candidate_base_url, exc):
+                    if not should_retry_graph_fetch(candidate_base_url, exc):
                         break
             if len(graphs) > graph_index:
                 break
@@ -216,21 +220,25 @@ def fetch_graphs_from_web(hostname: str, service: str) -> list[str]:
     raise RuntimeError("; ".join(errors[-4:]) or "no graph images returned")
 
 
-def graph_base_url_candidates(base_url: str) -> list[str]:
+def graph_fetch_attempts(base_url: str) -> list[tuple[str, bool]]:
     parsed = parse.urlsplit(base_url)
     if parsed.scheme == "https" and is_loopback_host(parsed.hostname or ""):
         http_url = parse.urlunsplit(("http", parsed.netloc, parsed.path, "", ""))
-        return [base_url, http_url]
-    return [base_url]
+        return [
+            (http_url, True),
+            (base_url, True),
+            (base_url, False),
+        ]
+    return [(base_url, True)]
 
 
 def is_loopback_host(hostname: str) -> bool:
     return hostname.lower() in {"127.0.0.1", "::1", "localhost"}
 
 
-def should_retry_graph_fetch_with_http(base_url: str, exc: Exception) -> bool:
+def should_retry_graph_fetch(base_url: str, exc: Exception) -> bool:
     parsed = parse.urlsplit(base_url)
-    if parsed.scheme != "https" or not is_loopback_host(parsed.hostname or ""):
+    if not is_loopback_host(parsed.hostname or ""):
         return False
     text = str(exc).lower()
     return (
@@ -278,6 +286,8 @@ def fetch_graph_image(
     username: str,
     secret: str,
     request_object: dict[str, Any],
+    *,
+    verify_tls: bool,
 ) -> str:
     query = parse.urlencode(
         {
@@ -288,15 +298,21 @@ def fetch_graph_image(
     )
     url = f"{base_url}/check_mk/graph_image.py?{query}"
     req = request.Request(url, headers={"Accept": "image/png"})
+    context = None
+    if parse.urlsplit(base_url).scheme == "https" and not verify_tls:
+        context = ssl._create_unverified_context()
     try:
-        with request.urlopen(req, timeout=30) as response:
+        with request.urlopen(req, timeout=30, context=context) as response:
             content_type = response.headers.get("Content-Type", "")
             body = response.read()
     except error.HTTPError as exc:
         body = exc.read(500).decode("utf-8", "replace")
         raise RuntimeError(f"graph_image.py returned HTTP {exc.code}: {body}") from exc
     except error.URLError as exc:
-        raise RuntimeError(f"graph_image.py request failed: {exc.reason}") from exc
+        verification = " without TLS verification" if not verify_tls else ""
+        raise RuntimeError(
+            f"graph_image.py request failed{verification}: {exc.reason}"
+        ) from exc
 
     if "image" not in content_type.lower() or not body.startswith(b"\x89PNG"):
         preview = body[:200].decode("utf-8", "replace")

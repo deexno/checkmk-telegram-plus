@@ -68,7 +68,10 @@ Graph rendering is version tolerant:
 4. The recommended `base_url` is the local HTTP URL
    `http://127.0.0.1/<site>`. If a loopback HTTPS URL fails certificate
    verification because the certificate is not valid for `127.0.0.1`,
-   `localhost` or `::1`, the bridge retries the local request over HTTP.
+   `localhost` or `::1`, the bridge retries the local request over HTTP. If
+   the local web server redirects that HTTP request back to HTTPS, the bridge
+   retries loopback HTTPS without certificate verification as a last resort.
+   This relaxed TLS fallback is never used for non-loopback hosts.
 5. If neither method is available, only the graph request fails with a clear
    error message. The bridge service and the bot keep running.
 
