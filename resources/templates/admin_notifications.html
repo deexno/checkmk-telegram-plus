@@ -87,7 +87,7 @@
           <p class="small text-secondary text-break">{{ selected_event_id }}</p>
           {% for delivery in deliveries %}
             <div class="quick-action mb-2 d-block">
-              <div><strong>{{ delivery.status }}</strong> an {{ delivery.username or delivery.telegram_id }}</div>
+              <div><strong>{{ delivery.status }}</strong> an {{ delivery.username or ("System" if delivery.telegram_id == 0 else delivery.telegram_id) }}</div>
               <div class="small text-secondary">{{ delivery.sent_at }}</div>
               {% if delivery.error %}<div class="small text-danger">{{ delivery.error }}</div>{% endif %}
             </div>

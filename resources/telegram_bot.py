@@ -1503,6 +1503,12 @@ async def send_automatic_notification(context: ContextTypes.DEFAULT_TYPE):
             details=json.dumps(smart_decision, ensure_ascii=False)[:1000],
         )
         if smart_decision.get("action") == "suppress":
+            storage.record_delivery(
+                event_id=event_id,
+                telegram_id=0,
+                status="suppressed",
+                error=smart_decision.get("reason", ""),
+            )
             logger.info(
                 "Smart notification suppressed event %s: %s",
                 event_id,
@@ -1532,6 +1538,16 @@ async def send_automatic_notification(context: ContextTypes.DEFAULT_TYPE):
     )
 
     # Send the message to all the recipients in the recipient list
+    if not recipient_list:
+        storage.record_delivery(
+            event_id=event_id,
+            telegram_id=0,
+            status="no_recipients",
+            error=f"No active Telegram users subscribed to {type}.",
+        )
+        logger.info("No recipients for notification event %s type %s", event_id, type)
+        return
+
     for recipient in recipient_list:
         try:
             reply_markup = [

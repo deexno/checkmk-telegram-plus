@@ -58,14 +58,20 @@ class StorageTest(unittest.TestCase):
                 status="sent",
                 telegram_message_id=42,
             )
+            storage.record_delivery(
+                event_id="evt-1",
+                telegram_id=0,
+                status="suppressed",
+                error="duplicate smart alert",
+            )
 
             notifications = storage.recent_notifications()
             self.assertEqual(notifications[0]["event_id"], "evt-1")
             self.assertEqual(notifications[0]["sent_count"], 1)
-            self.assertEqual(
-                storage.notification_deliveries("evt-1")[0]["telegram_message_id"],
-                42,
-            )
+            self.assertEqual(notifications[0]["delivery_count"], 2)
+            deliveries = storage.notification_deliveries("evt-1")
+            self.assertIn("sent", {delivery["status"] for delivery in deliveries})
+            self.assertIn("suppressed", {delivery["status"] for delivery in deliveries})
             self.assertEqual(
                 storage.notification_event_id_for_delivery(1001, 42),
                 "evt-1",
