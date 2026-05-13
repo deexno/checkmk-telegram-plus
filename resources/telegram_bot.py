@@ -1468,7 +1468,9 @@ async def send_automatic_notification(context: ContextTypes.DEFAULT_TYPE):
         output,
     ) = notificaion_variables
 
-    recipient_list = storage.notification_recipients(type)
+    subscription_type = type
+    telegram_notification_type = type
+    recipient_list = storage.notification_recipients(subscription_type)
     storage.record_notification_event(
         event_id=event_id,
         notification_type=type,
@@ -1515,7 +1517,9 @@ async def send_automatic_notification(context: ContextTypes.DEFAULT_TYPE):
                 smart_decision.get("reason", ""),
             )
             return
-        type = smart_decision.get("notification_type", "notifications_silent")
+        telegram_notification_type = smart_decision.get(
+            "notification_type", "notifications_silent"
+        )
 
     # Get the state details in the form of emoji and text for both from_state
     # and to_state
@@ -1543,9 +1547,13 @@ async def send_automatic_notification(context: ContextTypes.DEFAULT_TYPE):
             event_id=event_id,
             telegram_id=0,
             status="no_recipients",
-            error=f"No active Telegram users subscribed to {type}.",
+            error=f"No active Telegram users subscribed to {subscription_type}.",
         )
-        logger.info("No recipients for notification event %s type %s", event_id, type)
+        logger.info(
+            "No recipients for notification event %s type %s",
+            event_id,
+            subscription_type,
+        )
         return
 
     for recipient in recipient_list:
@@ -1590,7 +1598,11 @@ async def send_automatic_notification(context: ContextTypes.DEFAULT_TYPE):
 
             sent_message = await context.bot.send_message(
                 chat_id=recipient,
-                disable_notification=True if type == "notifications_silent" else False,
+                disable_notification=(
+                    True
+                    if telegram_notification_type == "notifications_silent"
+                    else False
+                ),
                 text=message,
                 reply_markup=InlineKeyboardMarkup(reply_markup),
                 parse_mode="HTML",
