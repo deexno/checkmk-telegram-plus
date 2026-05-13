@@ -126,6 +126,38 @@ class StorageTest(unittest.TestCase):
             self.assertEqual(history[0]["notification_type"], "notifications_smart")
             self.assertTrue(history[0]["output"].endswith("...[truncated]"))
 
+    def test_persists_notification_reminders(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            storage = AppStorage(Path(tmp) / "state.sqlite3")
+            reminder_id = storage.create_notification_reminder(
+                event_id="evt-4",
+                telegram_id=1001,
+                hostname="host4",
+                service_description="CPU load",
+                reminder_label="30 Min.",
+                due_at=12345,
+                requested_by="alice",
+            )
+
+            reminders = storage.pending_notification_reminders()
+            self.assertEqual(reminders[0]["id"], reminder_id)
+            self.assertEqual(reminders[0]["hostname"], "host4")
+
+            storage.mark_notification_reminder_sent(reminder_id, 99)
+            self.assertEqual(storage.pending_notification_reminders(), [])
+
+            failed_id = storage.create_notification_reminder(
+                event_id="evt-5",
+                telegram_id=1002,
+                hostname="host5",
+                service_description="Memory",
+                reminder_label="60 Min.",
+                due_at=12346,
+                requested_by="bob",
+            )
+            storage.mark_notification_reminder_failed(failed_id, "boom")
+            self.assertEqual(storage.pending_notification_reminders(), [])
+
 
 if __name__ == "__main__":
     unittest.main()

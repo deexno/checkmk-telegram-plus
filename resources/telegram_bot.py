@@ -127,6 +127,12 @@ storage.migrate_from_config(config)
 SMART_NOTIFICATION_TYPE = "notifications_smart"
 SMART_DECISION_TYPES = {"notifications_loud", "notifications_silent"}
 
+REMINDER_OPTIONS = {
+    "30": "30 Min.",
+    "60": "60 Min.",
+    "1440": "1 Day",
+}
+
 SMART_SYSTEM_INSTRUCTIONS = """
 You evaluate Checkmk notifications for a Telegram alert bot.
 Decide whether the current notification should be sent or suppressed.
@@ -335,6 +341,16 @@ def notifcation_listener():
             logger.critical(e)
 
 
+def schedule_pending_reminders():
+    for reminder in storage.pending_notification_reminders():
+        delay_seconds = max(0, int(reminder["due_at"]) - int(time.time()))
+        bot_handler_job_queue.run_once(
+            send_reminder_notification,
+            delay_seconds,
+            data=reminder,
+        )
+
+
 def log_authenticated_access(username, command):
     logger.info(
         "%s has executed the command '%s'",
@@ -372,6 +388,135 @@ def audit_callback_action(update, action, hostname="", description="", details="
         details=" ".join(part for part in detail_parts if part),
     )
     return event_id
+
+
+def notification_action_keyboard(description, hostname, help_callback_data=None):
+    top_row = [
+        InlineKeyboardButton(
+            "🔂 RECHECK",
+            callback_data=f"recheck,{description},{hostname},0",
+        )
+    ]
+    if description != "":
+        top_row.extend(
+            [
+                InlineKeyboardButton(
+                    "📉 GRAPHS",
+                    callback_data=f"graph,{description},{hostname}",
+                ),
+                InlineKeyboardButton(
+                    "🆘 HELP",
+                    callback_data=(
+                        help_callback_data
+                        or f"help,hostname:{hostname};service:{description}"
+                    ),
+                ),
+            ]
+        )
+
+    rows = [top_row]
+    if description != "":
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    "✔️ ACKNOWLEDGE",
+                    callback_data=f"ack,{description},{hostname}",
+                ),
+                InlineKeyboardButton(
+                    "⏰ REMIND",
+                    callback_data=f"remind_select,{description},{hostname}",
+                ),
+            ]
+        )
+    return InlineKeyboardMarkup(rows)
+
+
+def reminder_options_keyboard(description, hostname):
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    label,
+                    callback_data=f"remind_set,{minutes},{description},{hostname}",
+                )
+                for minutes, label in REMINDER_OPTIONS.items()
+            ],
+            [
+                InlineKeyboardButton(
+                    "↩️ BACK",
+                    callback_data=f"remind_back,{description},{hostname}",
+                )
+            ],
+        ]
+    )
+
+
+def current_alert_details(hostname, description):
+    if description == "HOST STATUS":
+        return get_host_status(hostname)
+    return get_service_details(hostname, description)
+
+
+async def send_reminder_notification(context: ContextTypes.DEFAULT_TYPE):
+    data = context.job.data if isinstance(context.job.data, dict) else {}
+    reminder_id = data.get("id") or data.get("reminder_id")
+    chat_id = data.get("chat_id") or data.get("telegram_id")
+    hostname = data.get("hostname", "")
+    description = data.get("description", data.get("service_description", ""))
+    reminder_label = data.get("reminder_label", "")
+    requested_by = data.get("requested_by", "")
+    event_id = data.get("event_id", "")
+
+    try:
+        current_details = current_alert_details(hostname, description)
+        message = (
+            "⏰ <u><b>REMINDER</b></u>\n"
+            f"{translate('Scheduled')}: {reminder_label}\n"
+            f"{translate('Host')}: {hostname}\n"
+            f"{translate('Service')}: {description}\n"
+            "\n<u><b>CURRENT INFO:</b></u>\n"
+            f"{current_details}"
+        )
+        sent_message = await context.bot.send_message(
+            chat_id=chat_id,
+            text=message,
+            reply_markup=notification_action_keyboard(description, hostname),
+            parse_mode="HTML",
+        )
+        if event_id:
+            storage.record_delivery(
+                event_id=event_id,
+                telegram_id=int(chat_id),
+                status="sent",
+                telegram_message_id=getattr(sent_message, "message_id", None),
+            )
+        if reminder_id:
+            storage.mark_notification_reminder_sent(
+                int(reminder_id), getattr(sent_message, "message_id", None)
+            )
+        storage.add_audit(
+            actor_type="system",
+            action="reminder_sent",
+            target=event_id or f"{hostname}/{description}",
+            details=(
+                f"host={hostname} service={description} "
+                f"telegram_id={chat_id} requested_by={requested_by} "
+                f"delay={reminder_label}"
+            ),
+        )
+    except Exception as e:
+        logger.critical(e)
+        if reminder_id:
+            storage.mark_notification_reminder_failed(int(reminder_id), str(e))
+        if chat_id:
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=translate(
+                    "I'm sorry but while I was processing your reminder an "
+                    "error occurred!"
+                ),
+                reply_markup=home_menu,
+            )
 
 
 def smart_current_alert(
@@ -1361,23 +1506,7 @@ async def recheck(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 text=translate(
                     f"(🔂 RECHECK {recheck_id} - {current_datetime})\n\n{message}"
                 ),
-                reply_markup=InlineKeyboardMarkup(
-                    [
-                        [
-                            InlineKeyboardButton(
-                                "🔂 RECHECK",
-                                callback_data=f"recheck,"
-                                f"{description},"
-                                f"{hostname},"
-                                "0",
-                            ),
-                            InlineKeyboardButton(
-                                "📉 GRAPHS",
-                                callback_data=f"graph," f"{description},{hostname}",
-                            ),
-                        ]
-                    ]
-                ),
+                reply_markup=notification_action_keyboard(description, hostname),
                 parse_mode="HTML",
             )
             log_authenticated_access(
@@ -1458,6 +1587,104 @@ async def post_print_service_graphs(
                 reply_markup=home_menu,
                 parse_mode="HTML",
             )
+
+
+async def show_reminder_options(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    if is_user_authenticated(update.effective_user.id):
+        query = update.callback_query
+        await query.answer()
+        _, description, hostname = query.data.split(",", 2)
+        audit_callback_action(
+            update,
+            "reminder_options_requested",
+            hostname=hostname,
+            description=description,
+        )
+        await query.edit_message_reply_markup(
+            reply_markup=reminder_options_keyboard(description, hostname)
+        )
+    else:
+        log_unauthenticated_access(
+            update.effective_user.username,
+            update.callback_query.data if update.callback_query else "",
+        )
+
+
+async def restore_notification_actions(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    if is_user_authenticated(update.effective_user.id):
+        query = update.callback_query
+        await query.answer()
+        _, description, hostname = query.data.split(",", 2)
+        await query.edit_message_reply_markup(
+            reply_markup=notification_action_keyboard(description, hostname)
+        )
+    else:
+        log_unauthenticated_access(
+            update.effective_user.username,
+            update.callback_query.data if update.callback_query else "",
+        )
+
+
+async def schedule_reminder(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    if is_user_authenticated(update.effective_user.id):
+        query = update.callback_query
+        await query.answer()
+        _, minutes, description, hostname = query.data.split(",", 3)
+        reminder_label = REMINDER_OPTIONS.get(minutes, f"{minutes} Min.")
+        delay_seconds = int(minutes) * 60
+        event_id = audit_callback_action(
+            update,
+            "reminder_scheduled",
+            hostname=hostname,
+            description=description,
+            details=f"delay={reminder_label}",
+        )
+        user = update.effective_user
+        due_at = int(time.time()) + delay_seconds
+        reminder_id = storage.create_notification_reminder(
+            event_id=event_id,
+            telegram_id=int(user.id),
+            hostname=hostname,
+            service_description=description,
+            reminder_label=reminder_label,
+            due_at=due_at,
+            requested_by=user.username or str(user.id),
+        )
+        bot_handler_job_queue.run_once(
+            send_reminder_notification,
+            delay_seconds,
+            data={
+                "reminder_id": reminder_id,
+                "chat_id": int(user.id),
+                "hostname": hostname,
+                "description": description,
+                "reminder_label": reminder_label,
+                "requested_by": user.username or str(user.id),
+                "event_id": event_id,
+            },
+        )
+        await query.edit_message_reply_markup(
+            reply_markup=notification_action_keyboard(description, hostname)
+        )
+        await context.bot.send_message(
+            chat_id=user.id,
+            text=translate(
+                f"Reminder scheduled for {hostname} / {description} in "
+                f"{reminder_label}."
+            ),
+            disable_notification=True,
+        )
+    else:
+        log_unauthenticated_access(
+            update.effective_user.username,
+            update.callback_query.data if update.callback_query else "",
+        )
 
 
 async def send_automatic_notification(context: ContextTypes.DEFAULT_TYPE):
@@ -1581,43 +1808,20 @@ async def send_automatic_notification(context: ContextTypes.DEFAULT_TYPE):
 
     for recipient in recipient_list:
         try:
-            reply_markup = [
-                [
-                    InlineKeyboardButton(
-                        "🔂 RECHECK",
-                        callback_data=f"recheck,{description},{hostname},0",
-                    )
-                ]
-            ]
-
+            reply_markup = notification_action_keyboard(description, hostname)
             if description != "":
-                reply_markup = [
-                    [
-                        InlineKeyboardButton(
-                            "🔂 RECHECK",
-                            callback_data=f"recheck,{description},{hostname},0",
-                        ),
-                        InlineKeyboardButton(
-                            "📉 GRAPHS",
-                            callback_data=f"graph,{description},{hostname}",
-                        ),
-                        InlineKeyboardButton(
-                            "🆘 HELP",
-                            callback_data="help,"
-                            f"hostname:{hostname};"
-                            f"service:{description};"
-                            f"from_state:{from_state};"
-                            f"to_state:{to_state};"
-                            f"output:{output}",
-                        ),
-                    ],
-                    [
-                        InlineKeyboardButton(
-                            "✔️ ACKNOWLEDGE",
-                            callback_data=f"ack,{description},{hostname}",
-                        )
-                    ],
-                ]
+                reply_markup = notification_action_keyboard(
+                    description,
+                    hostname,
+                    help_callback_data=(
+                        "help,"
+                        f"hostname:{hostname};"
+                        f"service:{description};"
+                        f"from_state:{from_state};"
+                        f"to_state:{to_state};"
+                        f"output:{output}"
+                    ),
+                )
 
             sent_message = await context.bot.send_message(
                 chat_id=recipient,
@@ -1627,7 +1831,7 @@ async def send_automatic_notification(context: ContextTypes.DEFAULT_TYPE):
                     else False
                 ),
                 text=message,
-                reply_markup=InlineKeyboardMarkup(reply_markup),
+                reply_markup=reply_markup,
                 parse_mode="HTML",
             )
             storage.record_delivery(
@@ -2458,6 +2662,8 @@ def main() -> None:
             data=f"Your Bot Version is not up-to-date! \n\n{version_summary}",
         )
 
+    schedule_pending_reminders()
+
     # Add command handlers
     bot_handler.add_handler(CommandHandler("start", start))
     bot_handler.add_handler(CommandHandler("menu", start))
@@ -2887,6 +3093,17 @@ def main() -> None:
     # Add callback handler for "✔️ ACKNOWLEDGE" button
     bot_handler.add_handler(
         CallbackQueryHandler(acknowledge_service_problem, pattern="^ack,")
+    )
+
+    # Add callback handlers for "⏰ REMIND" button
+    bot_handler.add_handler(
+        CallbackQueryHandler(show_reminder_options, pattern="^remind_select,")
+    )
+    bot_handler.add_handler(
+        CallbackQueryHandler(schedule_reminder, pattern="^remind_set,")
+    )
+    bot_handler.add_handler(
+        CallbackQueryHandler(restore_notification_actions, pattern="^remind_back,")
     )
 
     # Add callback handler for "🆘 HELP" button

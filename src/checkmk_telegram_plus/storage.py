@@ -113,6 +113,25 @@ class AppStorage:
                     details TEXT NOT NULL DEFAULT '',
                     created_at TEXT NOT NULL
                 );
+
+                CREATE TABLE IF NOT EXISTS notification_reminders (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_id TEXT NOT NULL DEFAULT '',
+                    telegram_id INTEGER NOT NULL,
+                    hostname TEXT NOT NULL DEFAULT '',
+                    service_description TEXT NOT NULL DEFAULT '',
+                    reminder_label TEXT NOT NULL DEFAULT '',
+                    due_at INTEGER NOT NULL,
+                    requested_by TEXT NOT NULL DEFAULT '',
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    telegram_message_id INTEGER,
+                    error TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_notification_reminders_pending
+                    ON notification_reminders(status, due_at);
                 """
             )
             columns = {
@@ -338,6 +357,82 @@ class AppStorage:
                 ) VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (event_id, telegram_id, status, telegram_message_id, error, utc_now()),
+            )
+
+    def create_notification_reminder(
+        self,
+        *,
+        event_id: str,
+        telegram_id: int,
+        hostname: str,
+        service_description: str,
+        reminder_label: str,
+        due_at: int,
+        requested_by: str,
+    ) -> int:
+        now = utc_now()
+        with self.connect() as db:
+            cursor = db.execute(
+                """
+                INSERT INTO notification_reminders (
+                    event_id, telegram_id, hostname, service_description,
+                    reminder_label, due_at, requested_by, status, created_at,
+                    updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+                """,
+                (
+                    event_id,
+                    telegram_id,
+                    hostname,
+                    service_description,
+                    reminder_label,
+                    due_at,
+                    requested_by,
+                    now,
+                    now,
+                ),
+            )
+            return int(cursor.lastrowid)
+
+    def pending_notification_reminders(self) -> list[dict[str, Any]]:
+        with self.connect() as db:
+            rows = db.execute(
+                """
+                SELECT *
+                FROM notification_reminders
+                WHERE status = 'pending'
+                ORDER BY due_at ASC
+                """
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def mark_notification_reminder_sent(
+        self, reminder_id: int, telegram_message_id: int | None
+    ) -> None:
+        with self.connect() as db:
+            db.execute(
+                """
+                UPDATE notification_reminders
+                SET status = 'sent',
+                    telegram_message_id = ?,
+                    error = '',
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (telegram_message_id, utc_now(), reminder_id),
+            )
+
+    def mark_notification_reminder_failed(self, reminder_id: int, error: str) -> None:
+        with self.connect() as db:
+            db.execute(
+                """
+                UPDATE notification_reminders
+                SET status = 'failed',
+                    error = ?,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (error, utc_now(), reminder_id),
             )
 
     def recent_notifications(self, limit: int = 100) -> list[dict[str, Any]]:
