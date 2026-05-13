@@ -1,21 +1,71 @@
-Default policy for Smart Notifications in a typical Checkmk environment:
+Smart Notification Policy for Checkmk Telegram Plus
 
-- Do not resend repeated alerts for the same host/service within a short period
-  unless the state or impact clearly changed.
-- Detect flapping between OK and CRITICAL/WARNING/UNKNOWN and avoid reporting
-  every transition. Prefer a single silent summary unless the issue stabilizes
-  as a major outage.
-- Consider parent/child relationships and likely cascades. If a switch, router,
-  firewall, hypervisor, storage system, uplink, or core service fails and many
-  dependent hosts/services fail shortly after, prefer reporting the root cause
-  and suppress or silence obvious follow-up symptoms.
-- Prefer loud alerts for new CRITICAL, DOWN, or unreachable issues affecting
-  critical infrastructure, connectivity, virtualization, storage, backup,
-  monitoring, security, or production systems.
-- Less important systems, test systems, informational services, warnings, and
-  ambiguous follow-up alerts should usually be silent or suppressed.
-- Send recovery notifications only when they close a previously important
-  incident or when the recovery itself is operationally useful.
-- If the case is unclear, send silently instead of suppressing.
-- Never completely ignore an important new CRITICAL/DOWN problem when there is
-  no clear duplicate, flapping, or dependency reason.
+Objective
+Evaluate each Checkmk alert as an on-call signal. Send only notifications that
+help a human understand or act on the situation. Reduce duplicate, noisy,
+flapping, and cascade alerts without hiding important new incidents.
+
+Available context
+- Current alert fields: host, service, state transition, output, notification
+  type, timestamp, hostgroup, IP address, and raw Checkmk notification fields.
+- Recent notification history: use it to detect duplicates, repeated state
+  changes, flapping, recoveries, and clusters of related failures.
+- Live Checkmk dependency context: use parents, parent states, children,
+  child states, and dependency errors to identify root causes and follow-up
+  symptoms.
+
+Decision rules
+1. Suppress clear duplicates.
+   Suppress repeated alerts for the same host/service/state/output when a
+   similar alert was already handled recently and there is no new impact.
+
+2. Detect flapping.
+   If a host or service repeatedly changes between OK/UP and a problem state,
+   avoid sending every transition. Send at most one useful signal, usually
+   silent, unless the issue stabilizes as a critical production incident.
+
+3. Prefer root causes over symptoms.
+   If a parent host, switch, router, firewall, uplink, hypervisor, storage
+   system, VPN, DNS, monitoring component, or core platform is already down or
+   critical, treat dependent host/service alerts as likely follow-up symptoms.
+   Suppress obvious symptoms when the root cause was already sent. Send silent
+   only if the symptom adds meaningful new scope or confirms a broad outage.
+
+4. Escalate important new incidents.
+   Send loud for new CRITICAL/DOWN/UNREACHABLE alerts affecting production,
+   network core, firewalls, routers, switches, hypervisors, storage, backup,
+   security, databases, identity, DNS, DHCP, internet uplinks, monitoring, or
+   other critical infrastructure. Do not suppress these unless there is strong
+   evidence they are duplicates or dependency symptoms.
+
+5. Keep non-critical noise quiet.
+   Send warnings, UNKNOWN states, test/lab systems, client devices, low-priority
+   services, transient agent issues, and ambiguous alerts silently unless they
+   indicate a wider or business-critical outage. Suppress them when they are
+   repetitive or clearly caused by another active problem.
+
+6. Handle recoveries carefully.
+   Send recovery messages only when they close a previously sent important
+   incident, confirm restoration of a root cause, or are operationally useful.
+   Suppress recoveries for alerts that were suppressed as duplicates/symptoms,
+   unless the recovery provides important closure for a visible outage.
+
+7. Treat manual test alerts as low urgency.
+   Alerts that look manually forced, test-generated, or administratively
+   triggered should usually be silent or suppressed unless they affect a
+   clearly critical object and no recent similar alert exists.
+
+8. Be conservative with suppression.
+   If you are unsure whether a new CRITICAL/DOWN problem is redundant, send it
+   silently rather than suppressing it. Only suppress when the redundancy,
+   flapping, or dependency relationship is clear.
+
+Output guidance
+- action must be "send" or "suppress".
+- notification_type must be "notifications_loud" or "notifications_silent".
+- Use "notifications_loud" only for actionable, high-impact, new incidents.
+- Use "notifications_silent" for uncertain, lower-priority, informational,
+  recovery, or possibly related alerts that should still be visible.
+- reason should be short, specific, and mention the main evidence, for example:
+  duplicate within recent history, flapping pattern, parent host down, recovery
+  for previously important incident, or new critical infrastructure failure.
