@@ -3,8 +3,8 @@
 <div class="d-flex flex-column flex-xl-row justify-content-between gap-3 mb-4">
   <div>
     <div class="page-kicker">Explorer</div>
-    <h1 class="page-title mb-1">Host & Service Lookup</h1>
-    <p class="text-secondary mb-0">Wähle Hostgruppe und Host. Die Ansicht zeigt danach alle Services automatisch.</p>
+    <h1 class="page-title mb-1">{{ t('host_service_lookup') }}</h1>
+    <p class="text-secondary mb-0">{{ t('monitoring_lead') }}</p>
   </div>
 </div>
 
@@ -14,15 +14,15 @@
   <div class="step-chip active">
     <div class="step-number">1</div>
     <div>
-      <div class="fw-bold">Hostgruppe</div>
-      <div class="small text-secondary text-break">{{ selected_hostgroup or "Noch nicht gewählt" }}</div>
+      <div class="fw-bold">{{ t('hostgroup') }}</div>
+      <div class="small text-secondary text-break">{{ selected_hostgroup or t('not_selected') }}</div>
     </div>
   </div>
   <div class="step-chip {% if selected_hostgroup %}active{% else %}disabled{% endif %}">
     <div class="step-number">2</div>
     <div>
-      <div class="fw-bold">Host</div>
-      <div class="small text-secondary text-break">{{ selected_host or "Nach Gruppe wählen" }}</div>
+      <div class="fw-bold">{{ t('host') }}</div>
+      <div class="small text-secondary text-break">{{ selected_host or t('host_choose_after_group') }}</div>
     </div>
   </div>
 </div>
@@ -32,12 +32,12 @@
   <div class="card-body choice-panel">
     <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-3">
       <div>
-        <div class="fw-semibold"><i class="bi bi-diagram-3 me-2 text-primary"></i>Hostgruppe auswählen</div>
-        <div class="small text-secondary">Der nächste Schritt zeigt nur Hosts aus dieser Gruppe.</div>
+        <div class="fw-semibold"><i class="bi bi-diagram-3 me-2 text-primary"></i>{{ t('hostgroup_choose') }}</div>
+        <div class="small text-secondary">{{ t('monitoring_lead') }}</div>
       </div>
       <div class="search-field col-12 col-lg-4">
         <i class="bi bi-search"></i>
-        <input class="form-control" type="search" placeholder="Hostgruppe suchen" data-choice-search="#hostgroupChoices">
+        <input class="form-control" type="search" placeholder="{{ t('hostgroup_search') }}" data-choice-search="#hostgroupChoices">
       </div>
     </div>
     <div id="hostgroupChoices" class="choice-grid">
@@ -45,12 +45,12 @@
         <a class="choice-card {% if group == selected_hostgroup %}active{% endif %}" href="{{ url_for('monitoring', hostgroup=group) }}" data-search-text="{{ group }}">
           <div class="choice-main">
             <div class="choice-title">{{ group }}</div>
-            <div class="choice-subtitle">Hosts anzeigen</div>
+            <div class="choice-subtitle">{{ t('hosts_show') }}</div>
           </div>
           <i class="bi bi-chevron-right text-primary"></i>
         </a>
       {% else %}
-        <div class="empty-hint">Keine Hostgruppen gefunden.</div>
+        <div class="empty-hint">{{ t('no_hostgroups') }}</div>
       {% endfor %}
     </div>
   </div>
@@ -62,16 +62,16 @@
   <div class="card-body choice-panel">
     <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-3">
       <div>
-        <div class="fw-semibold"><i class="bi bi-hdd-network me-2 text-primary"></i>Host auswählen</div>
+        <div class="fw-semibold"><i class="bi bi-hdd-network me-2 text-primary"></i>{{ t('host_choose') }}</div>
         <div class="health-strip mt-2">
-          <span class="health-pill"><i class="bi bi-hdd-stack"></i>{{ host_cards | length }} Hosts</span>
+          <span class="health-pill"><i class="bi bi-hdd-stack"></i>{{ host_cards | length }} {{ t('hosts') }}</span>
           <span class="health-pill"><i class="bi bi-check-circle text-success"></i>{{ host_cards | selectattr("has_problem", "equalto", false) | list | length }} OK</span>
-          <span class="health-pill"><i class="bi bi-exclamation-triangle text-danger"></i>{{ host_cards | selectattr("has_problem", "equalto", true) | list | length }} mit Problem</span>
+          <span class="health-pill"><i class="bi bi-exclamation-triangle text-danger"></i>{{ host_cards | selectattr("has_problem", "equalto", true) | list | length }} {{ t('with_problem') }}</span>
         </div>
       </div>
       <div class="search-field col-12 col-lg-4">
         <i class="bi bi-search"></i>
-        <input class="form-control" type="search" placeholder="Host suchen" data-choice-search="#hostChoices">
+        <input class="form-control" type="search" placeholder="{{ t('host_search') }}" data-choice-search="#hostChoices">
       </div>
     </div>
     <div id="hostChoices" class="choice-grid">
@@ -84,7 +84,7 @@
           <span class="badge text-bg-{{ host.badge_css }}">{{ host.badge_text }}</span>
         </a>
       {% else %}
-        <div class="empty-hint">Keine Hosts in dieser Hostgruppe gefunden.</div>
+        <div class="empty-hint">{{ t('no_hosts') }}</div>
       {% endfor %}
     </div>
   </div>
@@ -92,15 +92,32 @@
 {% endif %}
 
 {% if host_status is not none %}
+<div class="card d-none d-md-block">
 <div class="table-responsive">
   <table class="table soft-table mb-0">
-    <thead><tr><th>Service</th><th>Status</th></tr></thead>
+    <thead><tr><th>{{ t('service') }}</th><th>{{ t('status') }}</th></tr></thead>
     <tbody>
     {% for service in services %}
       <tr><td class="fw-semibold">{{ service.description }}</td><td>{{ service.state | state | safe }}</td></tr>
     {% endfor %}
     </tbody>
   </table>
+</div>
+</div>
+<div class="service-card-list d-md-none">
+  {% for service in services %}
+    <div class="service-status-card">
+      <div class="d-flex align-items-start justify-content-between gap-3">
+        <div class="min-w-0">
+          <div class="detail-label">{{ t('service') }}</div>
+          <div class="fw-bold text-break">{{ service.description }}</div>
+        </div>
+        <div class="flex-shrink-0">{{ service.state | state | safe }}</div>
+      </div>
+    </div>
+  {% else %}
+    <div class="empty-hint">{{ t('no_services') }}</div>
+  {% endfor %}
 </div>
 {% endif %}
 {% endblock %}

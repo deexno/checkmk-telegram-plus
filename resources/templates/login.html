@@ -14,6 +14,13 @@
       </div>
       <div class="card-body p-4">
         <p class="text-secondary mb-4">{{ lead }}</p>
+        <div class="mb-4">
+          <div class="small fw-semibold text-secondary mb-2">{{ t('language') }}</div>
+          <div class="language-switch" aria-label="{{ t('language') }}">
+            <a class="{% if current_language == 'de' %}active{% endif %}" href="{{ url_for('set_language', language='de', next=request.full_path) }}">DE</a>
+            <a class="{% if current_language == 'en' %}active{% endif %}" href="{{ url_for('set_language', language='en', next=request.full_path) }}">EN</a>
+          </div>
+        </div>
         <form method="post">
           <div class="mb-3">
             <label class="form-label fw-semibold" for="password">{{ field_label }}</label>

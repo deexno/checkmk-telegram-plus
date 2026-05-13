@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de" data-bs-theme="light">
+<html lang="{{ current_language }}" data-bs-theme="light">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -21,6 +21,7 @@
     * { letter-spacing: 0; }
     body {
       min-height: 100vh;
+      overflow-x: hidden;
       color: var(--ctp-ink);
       background:
         radial-gradient(circle at 8% 6%, rgba(15, 118, 110, .12), transparent 28%),
@@ -113,6 +114,31 @@
       background: transparent;
       text-align: left;
     }
+    .language-switch {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: .35rem;
+      padding: .35rem;
+      border: 1px solid var(--ctp-line);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, .68);
+    }
+    .language-switch a {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 34px;
+      border-radius: 10px;
+      color: var(--ctp-muted);
+      font-size: .82rem;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+    .language-switch a.active {
+      color: #fff;
+      background: linear-gradient(135deg, var(--ctp-brand), var(--ctp-brand-2));
+      box-shadow: 0 8px 18px rgba(15, 118, 110, .18);
+    }
     .mobile-nav-list .nav-pill {
       min-height: 58px;
       margin-bottom: 0;
@@ -185,6 +211,10 @@
       border-spacing: 0 .55rem;
       margin-top: -.55rem;
     }
+    .table-responsive {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
     .soft-table thead th {
       color: var(--ctp-muted);
       font-size: .76rem;
@@ -206,19 +236,104 @@
     .soft-table td:last-child { border-radius: 0 12px 12px 0; }
     .code-output { white-space: pre-wrap; word-break: break-word; }
     .alert-message {
-      padding: 1.15rem;
+      overflow: hidden;
+      padding: 0;
       border: 1px solid var(--ctp-line);
       border-radius: 14px;
       background: #fff;
       box-shadow: 0 8px 24px rgba(31, 42, 68, .05);
     }
+    .alert-message-head {
+      padding: 1rem;
+      background: linear-gradient(135deg, rgba(15, 118, 110, .08), rgba(37, 99, 235, .08));
+      border-bottom: 1px solid var(--ctp-line);
+    }
+    .alert-message-body { padding: 1rem; }
+    .alert-title {
+      font-weight: 800;
+      overflow-wrap: anywhere;
+    }
+    .alert-service {
+      color: var(--ctp-muted);
+      font-weight: 650;
+      overflow-wrap: anywhere;
+    }
     .alert-output {
-      padding: .85rem;
-      border-left: 4px solid #db3f8d;
-      background: #f8e4ef;
+      max-height: 320px;
+      overflow: auto;
+      padding: .95rem;
+      border: 1px solid rgba(37, 99, 235, .14);
+      border-left: 4px solid var(--ctp-brand-2);
+      background: #f8fbff;
       border-radius: 8px;
       color: #111827;
       font-size: .92rem;
+    }
+    .alert-event-list,
+    .service-card-list {
+      display: grid;
+      gap: .75rem;
+    }
+    .alert-event-card,
+    .service-status-card {
+      display: block;
+      padding: .95rem;
+      border: 1px solid var(--ctp-line);
+      border-radius: 12px;
+      background: #fff;
+      color: var(--ctp-ink);
+      box-shadow: 0 8px 24px rgba(31, 42, 68, .05);
+    }
+    .alert-event-card:hover,
+    .alert-event-card.active {
+      color: var(--ctp-ink);
+      border-color: rgba(15, 118, 110, .34);
+      box-shadow: 0 14px 34px rgba(31, 42, 68, .09);
+    }
+    .alert-event-card.active {
+      background: linear-gradient(180deg, #fff, rgba(15, 118, 110, .06));
+    }
+    .alert-meta-grid,
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: .65rem;
+    }
+    .detail-item {
+      padding: .75rem;
+      border: 1px solid var(--ctp-line);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, .68);
+    }
+    .detail-label {
+      color: var(--ctp-muted);
+      font-size: .72rem;
+      font-weight: 750;
+      text-transform: uppercase;
+    }
+    .detail-value {
+      margin-top: .15rem;
+      font-weight: 650;
+      overflow-wrap: anywhere;
+    }
+    .delivery-card {
+      display: grid;
+      grid-template-columns: 36px minmax(0, 1fr);
+      gap: .75rem;
+      align-items: start;
+    }
+    .delivery-icon {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      color: var(--ctp-brand);
+      background: rgba(15, 118, 110, .1);
+    }
+    .soft-table tbody tr.table-active {
+      outline: 2px solid rgba(15, 118, 110, .25);
+      outline-offset: -2px;
     }
     .form-select,
     .form-control {
@@ -288,6 +403,10 @@
       background: #fff;
       color: var(--ctp-ink);
       transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+    }
+    .choice-card,
+    .quick-action {
+      min-width: 0;
     }
     .choice-card:hover,
     .choice-card.active {
@@ -391,10 +510,85 @@
         border-right: 0;
         border-bottom: 1px solid var(--ctp-line);
       }
-      .content-wrap { padding: 14px; }
-      .soft-table { min-width: 760px; }
+      .content-wrap {
+        padding: 22px 14px calc(22px + env(safe-area-inset-bottom));
+      }
       .step-row { grid-template-columns: 1fr; }
       .choice-grid { grid-template-columns: 1fr; max-height: none; }
+    }
+    @media (min-width: 1400px) {
+      .alert-detail-card {
+        position: sticky;
+        top: 22px;
+      }
+    }
+    @media (max-width: 575.98px) {
+      body {
+        background: linear-gradient(180deg, #fbfcff 0%, #eef5fa 100%);
+      }
+      .sidebar {
+        padding: calc(10px + env(safe-area-inset-top)) 12px 10px;
+        background: rgba(255, 255, 255, .88);
+      }
+      .brand-mark {
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
+      }
+      .mobile-menu-button {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+      }
+      .page-kicker { font-size: .72rem; }
+      .page-title {
+        font-size: 1.75rem;
+        line-height: 1.08;
+      }
+      .content-wrap { padding-inline: 12px; }
+      .card,
+      .glass-card {
+        border-radius: 14px;
+        box-shadow: 0 10px 28px rgba(31, 42, 68, .07);
+      }
+      .card-header {
+        align-items: flex-start !important;
+        gap: .75rem;
+        padding: .9rem;
+      }
+      .card-body { padding: .95rem; }
+      .step-chip {
+        min-height: 66px;
+        padding: .78rem;
+      }
+      .choice-panel { padding: .85rem; }
+      .choice-card {
+        min-height: 62px;
+        padding: .8rem;
+      }
+      .health-strip {
+        display: grid;
+        grid-template-columns: 1fr;
+      }
+      .alert-meta-grid,
+      .detail-grid {
+        grid-template-columns: 1fr;
+      }
+      .alert-event-card,
+      .service-status-card {
+        padding: .85rem;
+      }
+      .alert-output {
+        max-height: 240px;
+        font-size: .86rem;
+      }
+      .alert-message-head .d-flex {
+        flex-direction: column;
+        align-items: flex-start !important;
+      }
+      .quick-action {
+        align-items: flex-start;
+      }
     }
   </style>
 </head>
@@ -410,7 +604,7 @@
           <div class="small text-secondary text-truncate">Control Center</div>
         </div>
       </div>
-      <button class="mobile-menu-button d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileNavigation" aria-controls="mobileNavigation" aria-label="Navigation öffnen">
+      <button class="mobile-menu-button d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileNavigation" aria-controls="mobileNavigation" aria-label="{{ t('nav_open') }}">
         <i class="bi bi-list fs-4"></i>
       </button>
     </div>
@@ -419,21 +613,28 @@
       <a class="nav-pill {% if request.endpoint == 'monitoring' %}active{% endif %}" href="{{ url_for('monitoring') }}"><i class="bi bi-search"></i><span>Monitoring</span></a>
       <a class="nav-pill {% if request.endpoint == 'admin_notifications' %}active{% endif %}" href="{{ url_for('admin_notifications') }}"><i class="bi bi-bell"></i><span>Alerts</span></a>
       {% if is_web_admin %}
-      <a class="nav-pill {% if request.endpoint == 'admin_users' %}active{% endif %}" href="{{ url_for('admin_users') }}"><i class="bi bi-people"></i><span>Benutzer</span></a>
+      <a class="nav-pill {% if request.endpoint == 'admin_users' %}active{% endif %}" href="{{ url_for('admin_users') }}"><i class="bi bi-people"></i><span>{{ t('users') }}</span></a>
       <a class="nav-pill {% if request.endpoint == 'admin_audit' %}active{% endif %}" href="{{ url_for('admin_audit') }}"><i class="bi bi-shield-check"></i><span>Audit</span></a>
       <a class="nav-pill {% if request.endpoint == 'admin_config' %}active{% endif %}" href="{{ url_for('admin_config') }}"><i class="bi bi-sliders"></i><span>Config</span></a>
       {% else %}
-      <a class="nav-pill {% if request.endpoint == 'admin_login' %}active{% endif %}" href="{{ url_for('admin_login') }}"><i class="bi bi-shield-lock"></i><span>Admin Login</span></a>
+      <a class="nav-pill {% if request.endpoint == 'admin_login' %}active{% endif %}" href="{{ url_for('admin_login') }}"><i class="bi bi-shield-lock"></i><span>{{ t('admin_login') }}</span></a>
       {% endif %}
     </div>
     <div class="d-none d-lg-block mt-auto pt-4">
+      <div class="mb-3">
+        <div class="small fw-semibold text-secondary mb-2">{{ t('language') }}</div>
+        <div class="language-switch" aria-label="{{ t('language') }}">
+          <a class="{% if current_language == 'de' %}active{% endif %}" href="{{ url_for('set_language', language='de', next=request.full_path) }}">DE</a>
+          <a class="{% if current_language == 'en' %}active{% endif %}" href="{{ url_for('set_language', language='en', next=request.full_path) }}">EN</a>
+        </div>
+      </div>
       <div class="p-3 rounded-4 bg-white border">
-        <div class="d-flex align-items-center gap-2 small text-secondary mb-2"><span class="status-dot"></span>Service erreichbar</div>
+        <div class="d-flex align-items-center gap-2 small text-secondary mb-2"><span class="status-dot"></span>{{ t('service_available') }}</div>
         <div class="fw-semibold text-break">{{ site }}</div>
       </div>
       <form class="mt-3" method="post" action="{{ url_for('logout') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="nav-pill nav-button" type="submit"><i class="bi bi-box-arrow-right"></i><span>Logout</span></button>
+        <button class="nav-pill nav-button" type="submit"><i class="bi bi-box-arrow-right"></i><span>{{ t('logout') }}</span></button>
       </form>
     </div>
   </aside>
@@ -446,7 +647,7 @@
           <div class="small text-secondary text-truncate">Navigation</div>
         </div>
       </div>
-      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Navigation schließen"></button>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="{{ t('nav_close') }}"></button>
     </div>
     <div class="offcanvas-body">
       <nav class="mobile-nav-list" aria-label="Mobile Navigation">
@@ -454,20 +655,27 @@
         <a class="nav-pill {% if request.endpoint == 'monitoring' %}active{% endif %}" href="{{ url_for('monitoring') }}"><i class="bi bi-search"></i><span>Monitoring</span></a>
         <a class="nav-pill {% if request.endpoint == 'admin_notifications' %}active{% endif %}" href="{{ url_for('admin_notifications') }}"><i class="bi bi-bell"></i><span>Alerts</span></a>
         {% if is_web_admin %}
-        <a class="nav-pill {% if request.endpoint == 'admin_users' %}active{% endif %}" href="{{ url_for('admin_users') }}"><i class="bi bi-people"></i><span>Benutzer</span></a>
+        <a class="nav-pill {% if request.endpoint == 'admin_users' %}active{% endif %}" href="{{ url_for('admin_users') }}"><i class="bi bi-people"></i><span>{{ t('users') }}</span></a>
         <a class="nav-pill {% if request.endpoint == 'admin_audit' %}active{% endif %}" href="{{ url_for('admin_audit') }}"><i class="bi bi-shield-check"></i><span>Audit</span></a>
         <a class="nav-pill {% if request.endpoint == 'admin_config' %}active{% endif %}" href="{{ url_for('admin_config') }}"><i class="bi bi-sliders"></i><span>Config</span></a>
         {% else %}
-        <a class="nav-pill {% if request.endpoint == 'admin_login' %}active{% endif %}" href="{{ url_for('admin_login') }}"><i class="bi bi-shield-lock"></i><span>Admin Login</span></a>
+        <a class="nav-pill {% if request.endpoint == 'admin_login' %}active{% endif %}" href="{{ url_for('admin_login') }}"><i class="bi bi-shield-lock"></i><span>{{ t('admin_login') }}</span></a>
         {% endif %}
       </nav>
+      <div>
+        <div class="small fw-semibold text-secondary mb-2">{{ t('language') }}</div>
+        <div class="language-switch" aria-label="{{ t('language') }}">
+          <a class="{% if current_language == 'de' %}active{% endif %}" href="{{ url_for('set_language', language='de', next=request.full_path) }}">DE</a>
+          <a class="{% if current_language == 'en' %}active{% endif %}" href="{{ url_for('set_language', language='en', next=request.full_path) }}">EN</a>
+        </div>
+      </div>
       <div class="mt-auto p-3 rounded-4 bg-white border">
-        <div class="d-flex align-items-center gap-2 small text-secondary mb-2"><span class="status-dot"></span>Service erreichbar</div>
+        <div class="d-flex align-items-center gap-2 small text-secondary mb-2"><span class="status-dot"></span>{{ t('service_available') }}</div>
         <div class="fw-semibold text-break">{{ site }}</div>
       </div>
       <form method="post" action="{{ url_for('logout') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="nav-pill nav-button" type="submit"><i class="bi bi-box-arrow-right"></i><span>Logout</span></button>
+        <button class="nav-pill nav-button" type="submit"><i class="bi bi-box-arrow-right"></i><span>{{ t('logout') }}</span></button>
       </form>
     </div>
   </div>

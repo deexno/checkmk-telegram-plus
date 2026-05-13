@@ -3,19 +3,19 @@
 <div class="d-flex flex-column flex-xl-row justify-content-between gap-3 mb-4">
   <div>
     <div class="page-kicker">Access Control</div>
-    <h1 class="page-title mb-1">Benutzerverwaltung</h1>
-    <p class="text-secondary mb-0">Rollen und Notification-Abos werden in SQLite verwaltet, nicht mehr in der Config.</p>
+    <h1 class="page-title mb-1">{{ t('users_management') }}</h1>
+    <p class="text-secondary mb-0">{{ t('users_lead') }}</p>
   </div>
 </div>
 
 <div class="card">
   <div class="card-header bg-white d-flex align-items-center justify-content-between">
-    <div class="fw-semibold"><i class="bi bi-people me-2 text-primary"></i>Telegram Benutzer</div>
-    <span class="badge text-bg-light border">{{ users | length }} Einträge</span>
+    <div class="fw-semibold"><i class="bi bi-people me-2 text-primary"></i>{{ t('telegram_users') }}</div>
+    <span class="badge text-bg-light border">{{ t('entries_count', count=users | length) }}</span>
   </div>
   <div class="table-responsive">
     <table class="table soft-table mb-0">
-      <thead><tr><th>User</th><th>Telegram ID</th><th>Rollen und Abos</th><th>Aktion</th></tr></thead>
+      <thead><tr><th>{{ t('user') }}</th><th>Telegram ID</th><th>{{ t('roles_subscriptions') }}</th><th>{{ t('action') }}</th></tr></thead>
       <tbody>
       {% for user in users %}
         <tr>
@@ -28,17 +28,17 @@
             <form method="post" id="user-{{ user.telegram_id }}" class="d-flex flex-wrap gap-3 align-items-center">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="telegram_id" value="{{ user.telegram_id }}">
-              <div class="form-check form-switch"><input class="form-check-input" name="active" type="checkbox" {% if user.active %}checked{% endif %}> <label class="form-check-label">aktiv</label></div>
+              <div class="form-check form-switch"><input class="form-check-input" name="active" type="checkbox" {% if user.active %}checked{% endif %}> <label class="form-check-label">{{ t('active') }}</label></div>
               <div class="form-check form-switch"><input class="form-check-input" name="is_admin" type="checkbox" {% if user.is_admin %}checked{% endif %}> <label class="form-check-label">Admin</label></div>
               <div class="form-check form-switch"><input class="form-check-input" name="notify_loud" type="checkbox" {% if user.notify_loud %}checked{% endif %}> <label class="form-check-label">Loud</label></div>
               <div class="form-check form-switch"><input class="form-check-input" name="notify_silent" type="checkbox" {% if user.notify_silent %}checked{% endif %}> <label class="form-check-label">Silent</label></div>
               <div class="form-check form-switch"><input class="form-check-input" name="notify_smart" type="checkbox" {% if user.notify_smart %}checked{% endif %}> <label class="form-check-label">Smart</label></div>
             </form>
           </td>
-          <td><button class="btn btn-primary btn-sm" form="user-{{ user.telegram_id }}" type="submit"><i class="bi bi-check2 me-1"></i>Speichern</button></td>
+          <td><button class="btn btn-primary btn-sm" form="user-{{ user.telegram_id }}" type="submit"><i class="bi bi-check2 me-1"></i>{{ t('save') }}</button></td>
         </tr>
       {% else %}
-        <tr><td colspan="4" class="text-secondary">Noch keine Benutzer in der Datenbank.</td></tr>
+        <tr><td colspan="4" class="text-secondary">{{ t('no_users') }}</td></tr>
       {% endfor %}
       </tbody>
     </table>

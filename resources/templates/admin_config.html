@@ -3,20 +3,20 @@
 <div class="d-flex flex-column flex-xl-row justify-content-between gap-3 mb-4">
   <div>
     <div class="page-kicker">Configuration</div>
-    <h1 class="page-title mb-1">Konfiguration</h1>
-    <p class="text-secondary mb-0">Aktive Config bearbeiten. Leere Secret-Felder behalten den bisherigen Wert.</p>
+    <h1 class="page-title mb-1">{{ t('configuration') }}</h1>
+    <p class="text-secondary mb-0">{{ t('config_lead') }}</p>
   </div>
 </div>
 
 <div class="card">
-  <div class="card-header bg-white fw-semibold"><i class="bi bi-sliders me-2 text-primary"></i>Runtime Config</div>
+  <div class="card-header bg-white fw-semibold"><i class="bi bi-sliders me-2 text-primary"></i>{{ t('runtime_config') }}</div>
   <div class="card-body">
-    <p class="text-secondary">Quelle: <code>{{ config_path }}</code></p>
+    <p class="text-secondary">{{ t('source') }}: <code>{{ config_path }}</code></p>
     <form method="post">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="mb-4">
         <label class="form-label fw-semibold" for="smart_instructions">
-          <i class="bi bi-magic me-2 text-primary"></i>Smart Notification Instructions
+          <i class="bi bi-magic me-2 text-primary"></i>{{ t('smart_instructions') }}
         </label>
         <textarea
           class="form-control font-monospace"
@@ -25,7 +25,7 @@
           rows="16"
           spellcheck="false"
         >{{ smart_instructions }}</textarea>
-        <div class="form-text">Quelle: <code>{{ smart_instructions_path }}</code></div>
+        <div class="form-text">{{ t('source') }}: <code>{{ smart_instructions_path }}</code></div>
       </div>
       <div class="accordion" id="configAccordion">
         {% for section, values in safe_config.items() %}
@@ -56,7 +56,7 @@
                       autocomplete="off"
                     >
                     {% if item.is_secret and item.display_value %}
-                      <div class="form-text">Aktuell: <code>{{ item.display_value }}</code></div>
+                      <div class="form-text">{{ t('current_value') }}: <code>{{ item.display_value }}</code></div>
                     {% endif %}
                   </div>
                 {% endfor %}
@@ -67,8 +67,8 @@
         {% endfor %}
       </div>
       <div class="d-flex flex-column flex-md-row justify-content-md-end gap-2 mt-4">
-        <a class="btn btn-outline-secondary" href="{{ url_for('admin_config') }}">Verwerfen</a>
-        <button class="btn btn-primary" type="submit"><i class="bi bi-save me-1"></i>Config speichern</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('admin_config') }}">{{ t('cancel') }}</a>
+        <button class="btn btn-primary" type="submit"><i class="bi bi-save me-1"></i>{{ t('config_save') }}</button>
       </div>
     </form>
   </div>

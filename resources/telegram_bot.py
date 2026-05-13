@@ -1496,6 +1496,18 @@ async def send_automatic_notification(context: ContextTypes.DEFAULT_TYPE):
 
     smart_decision = None
     if type == SMART_NOTIFICATION_TYPE:
+        if not recipient_list:
+            storage.record_delivery(
+                event_id=event_id,
+                telegram_id=0,
+                status="no_recipients",
+                error=f"No active Telegram users subscribed to {subscription_type}.",
+            )
+            logger.info(
+                "Skipping Smart analysis for event %s because there are no Smart subscribers",
+                event_id,
+            )
+            return
         current_alert = smart_current_alert(
             type,
             ip,

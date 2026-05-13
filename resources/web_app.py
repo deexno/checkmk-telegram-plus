@@ -12,6 +12,7 @@ from flask import (
     Flask,
     abort,
     flash,
+    g,
     redirect,
     render_template,
     request,
@@ -51,6 +52,209 @@ app.config.update(
     SESSION_COOKIE_SAMESITE="Lax",
 )
 
+SUPPORTED_LANGUAGES = ("de", "en")
+DEFAULT_LANGUAGE = "de"
+TRANSLATIONS = {
+    "de": {
+        "active": "aktiv",
+        "active_users": "Aktive Benutzer",
+        "actor": "Actor",
+        "action": "Aktion",
+        "actions_for_alert": "Aktionen zum Alert",
+        "admin_login": "Admin Login",
+        "admin_login_button": "Admin entsperren",
+        "admin_login_failed": "Admin-Login fehlgeschlagen. Admins können das Web-Admin-Passwort im Telegram-Admin-Menü anfordern.",
+        "admin_login_lead": "Für Benutzerverwaltung, Audit und Config ist das separate Web-Admin-Passwort nötig.",
+        "admin_password": "Web-Admin-Passwort",
+        "all_show": "Alle anzeigen",
+        "alert_message": "Alert-Nachricht",
+        "audit_empty": "Noch keine Audit-Einträge.",
+        "audit_events": "Audit Events",
+        "audit_lead": "Anmeldungen, Useränderungen und kritische Aktionen an einem Ort.",
+        "audit_log": "Audit-Log",
+        "by": "von",
+        "cancel": "Verwerfen",
+        "config_empty_changes": "Keine Config-Änderungen erkannt.",
+        "config_lead": "Aktive Config bearbeiten. Leere Secret-Felder behalten den bisherigen Wert.",
+        "config_saved": "Config wurde gespeichert.",
+        "config_save": "Config speichern",
+        "config_save_failed": "Config konnte nicht gespeichert werden: {error}",
+        "configuration": "Konfiguration",
+        "current_value": "Aktuell",
+        "dashboard_lead": "Schneller Überblick über Benutzer, Queue und die letzten versendeten Alerts.",
+        "delivery_click_details": "Delivery-Zähler anklicken, um Details zu sehen.",
+        "delivery_click_message": "Delivery-Zähler anklicken, um Nachricht, Ausgabe und Details zu sehen.",
+        "deliveries": "Zustellungen",
+        "details": "Details",
+        "entries_count": "{count} Einträge",
+        "events_count": "{count} Events",
+        "host": "Host",
+        "host_check": "Host prüfen",
+        "host_choose": "Host auswählen",
+        "host_choose_after_group": "Nach Gruppe wählen",
+        "host_problem": "Host-Problem",
+        "host_search": "Host suchen",
+        "host_service_lookup": "Host & Service Lookup",
+        "host_status": "HOST STATUS",
+        "hosts": "Hosts",
+        "hostgroup": "Hostgruppe",
+        "hostgroup_choose": "Hostgruppe auswählen",
+        "hostgroup_search": "Hostgruppe suchen",
+        "hosts_show": "Hosts anzeigen",
+        "ip_address": "IP-Adresse",
+        "language": "Sprache",
+        "last_alerts": "Letzte Alerts",
+        "login": "Einloggen",
+        "login_failed": "Login fehlgeschlagen.",
+        "login_lead": "Melde dich mit dem Bot-Passwort an, um Monitoring und Alerts zu öffnen.",
+        "logout": "Logout",
+        "monitoring_cockpit": "Monitoring Cockpit",
+        "monitoring_lead": "Wähle Hostgruppe und Host. Die Ansicht zeigt danach alle Services automatisch.",
+        "nav_close": "Navigation schließen",
+        "nav_open": "Navigation öffnen",
+        "no_alert_actions": "Noch keine Rechecks, Graph-, Help- oder Acknowledge-Aktionen für dieses Event.",
+        "no_alerts": "Noch keine Alerts.",
+        "no_alerts_logged": "Noch keine Alerts geloggt.",
+        "no_deliveries": "Keine Zustellungen für dieses Event.",
+        "no_hostgroups": "Keine Hostgruppen gefunden.",
+        "no_hosts": "Keine Hosts in dieser Hostgruppe gefunden.",
+        "no_services": "Keine Services gefunden.",
+        "no_users": "Noch keine Benutzer in der Datenbank.",
+        "not_selected": "Noch nicht gewählt",
+        "notification_delivery_lead": "Nachvollziehen, welche Notifications erzeugt und an wen sie zugestellt wurden.",
+        "notification_subscriptions": "Notification-Abos",
+        "output": "Ausgabe",
+        "password": "Bot-Passwort",
+        "queue_file_size": "Queue-Dateigröße",
+        "quick_actions": "Schnellaktionen",
+        "raw_event": "Raw Event",
+        "roles_subscriptions": "Rollen und Abos",
+        "runtime_config": "Runtime Config",
+        "save": "Speichern",
+        "select_alert": "Alert auswählen, um Aktionen zu sehen.",
+        "selected_event_missing": "Das ausgewählte Event wurde nicht gefunden.",
+        "sent": "Gesendet",
+        "service": "Service",
+        "service_available": "Service erreichbar",
+        "service_problem_count": "{count} Service-Problem(e)",
+        "smart_instructions": "Smart Notification Instructions",
+        "source": "Quelle",
+        "status": "Status",
+        "system": "System",
+        "telegram_users": "Telegram Benutzer",
+        "to": "an",
+        "type": "Typ",
+        "user": "User",
+        "user_updated": "Benutzer wurde aktualisiert.",
+        "users": "Benutzer",
+        "users_lead": "Rollen und Notification-Abos werden in SQLite verwaltet, nicht mehr in der Config.",
+        "users_management": "Benutzerverwaltung",
+        "target": "Ziel",
+        "time": "Zeit",
+        "online_no_problems": "Online, keine bekannten Probleme",
+        "with_problem": "mit Problem",
+    },
+    "en": {
+        "active": "active",
+        "active_users": "Active users",
+        "actor": "Actor",
+        "action": "Action",
+        "actions_for_alert": "Alert actions",
+        "admin_login": "Admin Login",
+        "admin_login_button": "Unlock admin",
+        "admin_login_failed": "Admin login failed. Admins can request the web admin password in the Telegram admin menu.",
+        "admin_login_lead": "User management, audit and config require the separate web admin password.",
+        "admin_password": "Web admin password",
+        "all_show": "Show all",
+        "alert_message": "Alert message",
+        "audit_empty": "No audit entries yet.",
+        "audit_events": "Audit events",
+        "audit_lead": "Logins, user changes and critical actions in one place.",
+        "audit_log": "Audit log",
+        "by": "by",
+        "cancel": "Discard",
+        "config_empty_changes": "No config changes detected.",
+        "config_lead": "Edit the active config. Empty secret fields keep their current value.",
+        "config_saved": "Config was saved.",
+        "config_save": "Save config",
+        "config_save_failed": "Config could not be saved: {error}",
+        "configuration": "Configuration",
+        "current_value": "Current",
+        "dashboard_lead": "Quick overview of users, queue and recently sent alerts.",
+        "delivery_click_details": "Click a delivery counter to see details.",
+        "delivery_click_message": "Click a delivery counter to see the message, output and details.",
+        "deliveries": "Deliveries",
+        "details": "Details",
+        "entries_count": "{count} entries",
+        "events_count": "{count} events",
+        "host": "Host",
+        "host_check": "Check host",
+        "host_choose": "Select host",
+        "host_choose_after_group": "Select group first",
+        "host_problem": "Host problem",
+        "host_search": "Search host",
+        "host_service_lookup": "Host & Service Lookup",
+        "host_status": "HOST STATUS",
+        "hosts": "Hosts",
+        "hostgroup": "Host group",
+        "hostgroup_choose": "Select host group",
+        "hostgroup_search": "Search host group",
+        "hosts_show": "Show hosts",
+        "ip_address": "IP address",
+        "language": "Language",
+        "last_alerts": "Recent alerts",
+        "login": "Sign in",
+        "login_failed": "Login failed.",
+        "login_lead": "Sign in with the bot password to open monitoring and alerts.",
+        "logout": "Logout",
+        "monitoring_cockpit": "Monitoring Cockpit",
+        "monitoring_lead": "Choose a host group and host. Services are shown automatically afterwards.",
+        "nav_close": "Close navigation",
+        "nav_open": "Open navigation",
+        "no_alert_actions": "No recheck, graph, help or acknowledge actions for this event yet.",
+        "no_alerts": "No alerts yet.",
+        "no_alerts_logged": "No alerts logged yet.",
+        "no_deliveries": "No deliveries for this event.",
+        "no_hostgroups": "No host groups found.",
+        "no_hosts": "No hosts found in this host group.",
+        "no_services": "No services found.",
+        "no_users": "No users in the database yet.",
+        "not_selected": "Not selected yet",
+        "notification_delivery_lead": "Track which notifications were created and who received them.",
+        "notification_subscriptions": "notification subscriptions",
+        "output": "Output",
+        "password": "Bot password",
+        "queue_file_size": "Queue file size",
+        "quick_actions": "Quick actions",
+        "raw_event": "Raw event",
+        "roles_subscriptions": "Roles and subscriptions",
+        "runtime_config": "Runtime config",
+        "save": "Save",
+        "select_alert": "Select an alert to see actions.",
+        "selected_event_missing": "The selected event was not found.",
+        "sent": "Sent",
+        "service": "Service",
+        "service_available": "Service reachable",
+        "service_problem_count": "{count} service problem(s)",
+        "smart_instructions": "Smart Notification Instructions",
+        "source": "Source",
+        "status": "Status",
+        "system": "System",
+        "telegram_users": "Telegram users",
+        "to": "to",
+        "type": "Type",
+        "user": "User",
+        "user_updated": "User was updated.",
+        "users": "Users",
+        "users_lead": "Roles and notification subscriptions are stored in SQLite, no longer in the config.",
+        "users_management": "User management",
+        "target": "Target",
+        "time": "Time",
+        "online_no_problems": "Online, no known problems",
+        "with_problem": "with problems",
+    },
+}
+
 
 def load_config() -> None:
     config.clear()
@@ -61,6 +265,30 @@ def web_setting(key: str, default: str) -> str:
     if not config.has_section("web"):
         return default
     return config.get("web", key, fallback=default)
+
+
+def normalize_language(value: str | None) -> str:
+    language = (value or "").replace("_", "-").split(",", 1)[0].split("-", 1)[0].lower()
+    return language if language in SUPPORTED_LANGUAGES else DEFAULT_LANGUAGE
+
+
+def current_language() -> str:
+    if session.get("language") in SUPPORTED_LANGUAGES:
+        return session["language"]
+    return normalize_language(request.accept_languages.best_match(SUPPORTED_LANGUAGES))
+
+
+def translate(key: str, **values) -> str:
+    language = getattr(g, "language", DEFAULT_LANGUAGE)
+    text = TRANSLATIONS.get(language, TRANSLATIONS[DEFAULT_LANGUAGE]).get(
+        key, TRANSLATIONS[DEFAULT_LANGUAGE].get(key, key)
+    )
+    return text.format(**values) if values else text
+
+
+@app.before_request
+def set_request_language() -> None:
+    g.language = current_language()
 
 
 def require_login(view):
@@ -110,6 +338,9 @@ def inject_globals():
         "csrf_token": csrf_token,
         "is_authenticated": bool(session.get("authenticated")),
         "is_web_admin": bool(session.get("admin_authenticated")),
+        "current_language": getattr(g, "language", DEFAULT_LANGUAGE),
+        "supported_languages": SUPPORTED_LANGUAGES,
+        "t": translate,
     }
 
 
@@ -118,6 +349,12 @@ def validate_csrf() -> None:
     submitted = request.form.get("csrf_token", "")
     if not token or not hmac.compare_digest(token, submitted):
         abort(400)
+
+
+def safe_redirect_target(value: str | None) -> str:
+    if value and value.startswith("/") and not value.startswith("//"):
+        return value
+    return url_for("dashboard") if session.get("authenticated") else url_for("login")
 
 
 def is_secret_config_key(key: str) -> bool:
@@ -208,9 +445,13 @@ def host_card(hostname, state, service_problem_count=0):
     problem_count = int(service_problem_count or 0)
     has_problem = str(state) not in {"0", "OK", "UP"} or problem_count > 0
     if has_problem:
-        summary = "Host-Problem" if problem_count == 0 else f"{problem_count} Service-Problem(e)"
+        summary = (
+            translate("host_problem")
+            if problem_count == 0
+            else translate("service_problem_count", count=problem_count)
+        )
     else:
-        summary = "Online, keine bekannten Probleme"
+        summary = translate("online_no_problems")
     return {
         "hostname": hostname,
         "state": state,
@@ -220,6 +461,12 @@ def host_card(hostname, state, service_problem_count=0):
         "has_problem": has_problem,
         "summary": summary,
     }
+
+
+@app.route("/language/<language>")
+def set_language(language):
+    session["language"] = normalize_language(language)
+    return redirect(safe_redirect_target(request.args.get("next")))
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -241,7 +488,7 @@ def login():
                 details=request.remote_addr or "",
             )
             return redirect(request.args.get("next") or url_for("dashboard"))
-        flash("Login fehlgeschlagen.", "danger")
+        flash(translate("login_failed"), "danger")
         storage.add_audit(
             actor_type="web",
             action="web_login_failed",
@@ -250,9 +497,9 @@ def login():
     return render_template(
         "login.html",
         title="Control Center",
-        lead="Melde dich mit dem Bot-Passwort an, um Monitoring und Alerts zu öffnen.",
-        field_label="Bot-Passwort",
-        button_label="Einloggen",
+        lead=translate("login_lead"),
+        field_label=translate("password"),
+        button_label=translate("login"),
     )
 
 
@@ -273,10 +520,7 @@ def admin_login():
                 details=request.remote_addr or "",
             )
             return redirect(request.args.get("next") or url_for("admin_users"))
-        flash(
-            "Admin-Login fehlgeschlagen. Admins können das Web-Admin-Passwort im Telegram-Admin-Menü anfordern.",
-            "danger",
-        )
+        flash(translate("admin_login_failed"), "danger")
         storage.add_audit(
             actor_type="web",
             action="web_admin_login_failed",
@@ -284,10 +528,10 @@ def admin_login():
         )
     return render_template(
         "login.html",
-        title="Admin Login",
-        lead="Für Benutzerverwaltung, Audit und Config ist das separate Web-Admin-Passwort nötig.",
-        field_label="Web-Admin-Passwort",
-        button_label="Admin entsperren",
+        title=translate("admin_login"),
+        lead=translate("admin_login_lead"),
+        field_label=translate("admin_password"),
+        button_label=translate("admin_login_button"),
     )
 
 
@@ -378,7 +622,7 @@ def admin_users():
             target=str(telegram_id),
             details=f"ip={request.remote_addr}",
         )
-        flash("Benutzer wurde aktualisiert.", "success")
+        flash(translate("user_updated"), "success")
         return redirect(url_for("admin_users"))
     return render_template("admin_users.html", users=storage.list_users())
 
@@ -421,7 +665,7 @@ def admin_config():
                 changed.append("smart_notifications.instructions")
             save_config()
         except OSError as exc:
-            flash(f"Config konnte nicht gespeichert werden: {exc}", "danger")
+            flash(translate("config_save_failed", error=exc), "danger")
         else:
             storage.add_audit(
                 actor_type="web",
@@ -429,9 +673,9 @@ def admin_config():
                 details=f"ip={request.remote_addr} changed={','.join(changed) or 'none'}",
             )
             if changed:
-                flash("Config wurde gespeichert.", "success")
+                flash(translate("config_saved"), "success")
             else:
-                flash("Keine Config-Änderungen erkannt.", "info")
+                flash(translate("config_empty_changes"), "info")
             return redirect(url_for("admin_config"))
     return render_template(
         "admin_config.html",

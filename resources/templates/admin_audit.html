@@ -3,19 +3,19 @@
 <div class="d-flex flex-column flex-xl-row justify-content-between gap-3 mb-4">
   <div>
     <div class="page-kicker">Security Trail</div>
-    <h1 class="page-title mb-1">Audit-Log</h1>
-    <p class="text-secondary mb-0">Anmeldungen, Useränderungen und kritische Aktionen an einem Ort.</p>
+    <h1 class="page-title mb-1">{{ t('audit_log') }}</h1>
+    <p class="text-secondary mb-0">{{ t('audit_lead') }}</p>
   </div>
 </div>
 
 <div class="card">
   <div class="card-header bg-white d-flex align-items-center justify-content-between">
-    <div class="fw-semibold"><i class="bi bi-shield-lock me-2 text-primary"></i>Audit Events</div>
-    <span class="badge text-bg-light border">{{ events | length }} Einträge</span>
+    <div class="fw-semibold"><i class="bi bi-shield-lock me-2 text-primary"></i>{{ t('audit_events') }}</div>
+    <span class="badge text-bg-light border">{{ t('entries_count', count=events | length) }}</span>
   </div>
   <div class="table-responsive">
     <table class="table soft-table mb-0">
-      <thead><tr><th>Zeit</th><th>Actor</th><th>Aktion</th><th>Ziel</th><th>Details</th></tr></thead>
+      <thead><tr><th>{{ t('time') }}</th><th>{{ t('actor') }}</th><th>{{ t('action') }}</th><th>{{ t('target') }}</th><th>{{ t('details') }}</th></tr></thead>
       <tbody>
       {% for event in events %}
         <tr>
@@ -26,7 +26,7 @@
           <td>{{ event.details }}</td>
         </tr>
       {% else %}
-        <tr><td colspan="5" class="text-secondary">Noch keine Audit-Einträge.</td></tr>
+        <tr><td colspan="5" class="text-secondary">{{ t('audit_empty') }}</td></tr>
       {% endfor %}
       </tbody>
     </table>
