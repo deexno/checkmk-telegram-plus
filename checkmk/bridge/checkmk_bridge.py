@@ -125,6 +125,90 @@ def service_details(params: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def normalize_string_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple, set)):
+        return [str(item) for item in value if str(item)]
+    text = str(value).strip()
+    if not text:
+        return []
+    if "," in text:
+        return [item.strip() for item in text.split(",") if item.strip()]
+    return [text]
+
+
+def host_summary(hostname: str) -> dict[str, Any]:
+    rows = query_table(
+        "GET hosts\n"
+        f"Filter: name = {hostname}\n"
+        "Columns: name address state plugin_output parents\n"
+    )
+    if not rows:
+        raise ValueError(f"host not found: {hostname}")
+    name, address, state, plugin_output, parents = rows[0]
+    return {
+        "hostname": str(name),
+        "address": str(address),
+        "state": state,
+        "plugin_output": str(plugin_output),
+        "parents": normalize_string_list(parents),
+    }
+
+
+def host_dependency_context(params: dict[str, Any]) -> dict[str, Any]:
+    hostname = clean_name(params.get("hostname"), "hostname")
+    host = host_summary(hostname)
+
+    parent_states = []
+    for parent in host["parents"][:20]:
+        try:
+            parent_states.append(host_summary(parent))
+        except Exception as exc:
+            parent_states.append({"hostname": parent, "error": str(exc)})
+
+    children = []
+    children_error = ""
+    try:
+        child_rows = query_table(
+            "GET hosts\n"
+            f"Filter: parents >= {hostname}\n"
+            "Columns: name address state plugin_output parents\n"
+        )
+        for name, address, state, plugin_output, parents in child_rows[:100]:
+            children.append(
+                {
+                    "hostname": str(name),
+                    "address": str(address),
+                    "state": state,
+                    "plugin_output": str(plugin_output),
+                    "parents": normalize_string_list(parents),
+                }
+            )
+    except Exception as exc:
+        children_error = str(exc)
+
+    problematic_parents = [
+        parent
+        for parent in parent_states
+        if parent.get("state") not in (0, "0", "OK", "UP") or parent.get("error")
+    ]
+    problematic_children = [
+        child for child in children if child.get("state") not in (0, "0", "OK", "UP")
+    ]
+    return {
+        "host": host,
+        "parents": parent_states,
+        "children": children,
+        "children_error": children_error,
+        "problematic_parents": problematic_parents,
+        "problematic_children": problematic_children,
+        "has_problematic_parent": bool(problematic_parents),
+        "child_count": len(children),
+        "problematic_child_count": len(problematic_children),
+    }
+
+
 def service_graphs(params: dict[str, Any]) -> list[str]:
     hostname = clean_name(params.get("hostname"), "hostname")
     service = clean_name(params.get("service"), "service")
@@ -600,6 +684,7 @@ ACTIONS = {
     "list_services": list_services,
     "host_status": host_status,
     "service_details": service_details,
+    "host_dependency_context": host_dependency_context,
     "service_graphs": service_graphs,
     "run_cmk_check": run_cmk_check,
     "host_problems": host_problems,

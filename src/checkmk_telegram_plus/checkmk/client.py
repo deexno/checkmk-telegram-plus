@@ -74,6 +74,9 @@ class CheckmkBridgeClient:
     def service_details(self, hostname: str, service: str) -> dict[str, Any]:
         return self.call("service_details", hostname=hostname, service=service)
 
+    def host_dependency_context(self, hostname: str) -> dict[str, Any]:
+        return self.call("host_dependency_context", hostname=hostname)
+
     def service_graphs(self, hostname: str, service: str) -> list[bytes]:
         graphs = self.call("service_graphs", hostname=hostname, service=service)
         return [base64.b64decode(graph) for graph in graphs]

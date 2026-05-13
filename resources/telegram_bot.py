@@ -132,7 +132,8 @@ You evaluate Checkmk notifications for a Telegram alert bot.
 Decide whether the current notification should be sent or suppressed.
 If it should be sent, decide whether it should be loud or silent.
 Use the current alert, recent notification history, possible duplicate alerts,
-flapping, dependency/cascade failures, recovery relevance, and user rules.
+live Checkmk dependency context, possible duplicate alerts, flapping,
+dependency/cascade failures, recovery relevance, and user rules.
 Be conservative with loud notifications, but do not suppress important incidents.
 Return only a machine-readable JSON object matching the requested schema.
 """.strip()
@@ -402,6 +403,14 @@ def smart_current_alert(
     }
 
 
+def smart_checkmk_context(hostname):
+    try:
+        return checkmk.host_dependency_context(hostname)
+    except Exception as exc:
+        logger.warning("Could not fetch Checkmk dependency context: %s", exc)
+        return {"error": str(exc)}
+
+
 def extract_response_text(response_json):
     if isinstance(response_json.get("output_text"), str):
         return response_json["output_text"]
@@ -445,6 +454,7 @@ def decide_smart_notification(current_alert):
 
     request_data = {
         "current_alert": current_alert,
+        "checkmk_context": current_alert.get("checkmk_context", {}),
         "recent_notifications": storage.smart_notification_history(80),
         "user_instructions": load_smart_user_instructions(),
     }
@@ -1497,6 +1507,7 @@ async def send_automatic_notification(context: ContextTypes.DEFAULT_TYPE):
             output,
             payload,
         )
+        current_alert["checkmk_context"] = smart_checkmk_context(hostname)
         smart_decision = decide_smart_notification(current_alert)
         storage.add_audit(
             actor_type="system",
