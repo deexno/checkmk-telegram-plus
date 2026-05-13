@@ -103,7 +103,10 @@ class SecurityStaticTest(unittest.TestCase):
         self.assertIn("@require_admin\ndef admin_users", text)
         self.assertIn("@require_admin\ndef admin_audit", text)
         self.assertIn("@require_admin\ndef admin_config", text)
+        self.assertIn("smart_instructions_path", text)
+        self.assertIn("save_smart_instructions", text)
         self.assertIn("admin_password =", config)
+        self.assertIn("notifications_smart =", config)
 
     def test_bridge_service_runs_as_site_user(self):
         text = (

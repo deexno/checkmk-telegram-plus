@@ -24,6 +24,7 @@ class StorageTest(unittest.TestCase):
             parser.set("telegram_bot", "admin_users", "alice (1001),")
             parser.set("telegram_bot", "notifications_loud", "1002,")
             parser.set("telegram_bot", "notifications_silent", "alice (1001),")
+            parser.set("telegram_bot", "notifications_smart", "alice (1001),")
 
             storage = AppStorage(database_path_from_config(parser))
             storage.migrate_from_config(parser)
@@ -33,6 +34,8 @@ class StorageTest(unittest.TestCase):
             self.assertFalse(storage.is_user_admin(1002))
             self.assertEqual(storage.notification_recipients("notifications_loud"), [1002])
             self.assertTrue(storage.notification_enabled(1001, "notifications_silent"))
+            self.assertTrue(storage.notification_enabled(1001, "notifications_smart"))
+            self.assertEqual(storage.notification_recipients("notifications_smart"), [1001])
 
     def test_records_notification_and_deliveries(self):
         with tempfile.TemporaryDirectory() as tmp:

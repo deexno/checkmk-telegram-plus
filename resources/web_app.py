@@ -166,6 +166,31 @@ def save_config() -> None:
         config.write(configfile)
 
 
+def smart_instructions_path() -> Path:
+    configured = (
+        config.get("smart_notifications", "instructions_path", fallback="")
+        if config.has_section("smart_notifications")
+        else ""
+    )
+    if configured:
+        return Path(configured)
+    return Path("/etc/checkmk-telegram-plus/smart-notification-instructions.txt")
+
+
+def load_smart_instructions() -> str:
+    path = smart_instructions_path()
+    try:
+        return path.read_text(encoding="utf-8") if path.exists() else ""
+    except OSError:
+        return ""
+
+
+def save_smart_instructions(value: str) -> None:
+    path = smart_instructions_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(value, encoding="utf-8")
+
+
 def state_badge(state):
     if str(state) in {"0", "OK", "UP"}:
         return "success", "OK"
@@ -344,6 +369,7 @@ def admin_users():
             is_admin=request.form.get("is_admin") == "on",
             notify_loud=request.form.get("notify_loud") == "on",
             notify_silent=request.form.get("notify_silent") == "on",
+            notify_smart=request.form.get("notify_smart") == "on",
             active=request.form.get("active") == "on",
         )
         storage.add_audit(
@@ -389,6 +415,10 @@ def admin_config():
         validate_csrf()
         try:
             changed = update_config_from_form()
+            submitted_instructions = request.form.get("smart_instructions", "")
+            if submitted_instructions != load_smart_instructions():
+                save_smart_instructions(submitted_instructions)
+                changed.append("smart_notifications.instructions")
             save_config()
         except OSError as exc:
             flash(f"Config konnte nicht gespeichert werden: {exc}", "danger")
@@ -407,6 +437,8 @@ def admin_config():
         "admin_config.html",
         config_path=CONFIG_PATH,
         safe_config=config_form_data(),
+        smart_instructions_path=smart_instructions_path(),
+        smart_instructions=load_smart_instructions(),
     )
 
 

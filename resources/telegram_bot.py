@@ -1221,6 +1221,11 @@ async def get_notification_settings(
             if not storage.notification_enabled(int(user_id), "notifications_silent")
             else "➖ DISABLE"
         )
+        current_setting_smart = (
+            "➕ ACTIVATE"
+            if not storage.notification_enabled(int(user_id), "notifications_smart")
+            else "➖ DISABLE"
+        )
 
         # Display the current notification settings to the user and provide
         # options to change the settings
@@ -1233,6 +1238,9 @@ async def get_notification_settings(
                     ),
                     KeyboardButton(
                         text=f"{current_setting_silent} AUTOMATIC MESSAGES (SILENT)"
+                    ),
+                    KeyboardButton(
+                        text=f"{current_setting_smart} AUTOMATIC MESSAGES (SMART)"
                     ),
                 ],
                 resize_keyboard=False,
@@ -1252,10 +1260,13 @@ async def change_notifications_setting(
         # Get the user's selection from the keyboard
         selection = update.message.text
 
-        # Determine if the user wants to change loud or silent notifications
-        setting = (
-            "notifications_loud" if "LOUD" in selection else "notifications_silent"
-        )
+        # Determine which automatic notification stream the user wants to change.
+        if "SMART" in selection:
+            setting = "notifications_smart"
+        elif "LOUD" in selection:
+            setting = "notifications_loud"
+        else:
+            setting = "notifications_silent"
 
         storage.set_notification_preference(
             int(update.effective_user.id), setting, "ACTIVATE" in selection
@@ -1828,7 +1839,8 @@ async def list_users(
                 f"{'ADMIN' if user['is_admin'] else 'USER'} "
                 f"{user['username'] or '-'} ({user['telegram_id']}) "
                 f"L:{'on' if user['notify_loud'] else 'off'} "
-                f"S:{'on' if user['notify_silent'] else 'off'}"
+                f"S:{'on' if user['notify_silent'] else 'off'} "
+                f"Smart:{'on' if user['notify_smart'] else 'off'}"
                 for user in users
             )
 

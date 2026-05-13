@@ -66,6 +66,7 @@ class AppStorage:
                     is_admin INTEGER NOT NULL DEFAULT 0,
                     notify_loud INTEGER NOT NULL DEFAULT 0,
                     notify_silent INTEGER NOT NULL DEFAULT 0,
+                    notify_smart INTEGER NOT NULL DEFAULT 0,
                     active INTEGER NOT NULL DEFAULT 1,
                     authenticated_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
@@ -114,6 +115,14 @@ class AppStorage:
                 );
                 """
             )
+            columns = {
+                row["name"]
+                for row in db.execute("PRAGMA table_info(app_users)").fetchall()
+            }
+            if "notify_smart" not in columns:
+                db.execute(
+                    "ALTER TABLE app_users ADD COLUMN notify_smart INTEGER NOT NULL DEFAULT 0"
+                )
 
     def migrate_from_config(self, config: configparser.RawConfigParser) -> None:
         if not config.has_section("telegram_bot"):
@@ -122,6 +131,7 @@ class AppStorage:
         admin_ids = self._ids_from_user_list(section.get("admin_users", ""))
         loud_ids = self._ids_from_user_list(section.get("notifications_loud", ""))
         silent_ids = self._ids_from_user_list(section.get("notifications_silent", ""))
+        smart_ids = self._ids_from_user_list(section.get("notifications_smart", ""))
 
         for user in self._users_from_config(section.get("allowed_users", "")):
             telegram_id = user["telegram_id"]
@@ -131,6 +141,7 @@ class AppStorage:
                 is_admin=telegram_id in admin_ids,
                 notify_loud=telegram_id in loud_ids,
                 notify_silent=telegram_id in silent_ids,
+                notify_smart=telegram_id in smart_ids,
             )
 
     def upsert_user(
@@ -143,6 +154,7 @@ class AppStorage:
         is_admin: bool | None = None,
         notify_loud: bool | None = None,
         notify_silent: bool | None = None,
+        notify_smart: bool | None = None,
         active: bool = True,
     ) -> None:
         now = utc_now()
@@ -155,9 +167,9 @@ class AppStorage:
                     """
                     INSERT INTO app_users (
                         telegram_id, username, first_name, last_name, is_admin,
-                        notify_loud, notify_silent, active, authenticated_at,
+                        notify_loud, notify_silent, notify_smart, active, authenticated_at,
                         updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         telegram_id,
@@ -167,6 +179,7 @@ class AppStorage:
                         int(bool(is_admin)),
                         int(bool(notify_loud)),
                         int(bool(notify_silent)),
+                        int(bool(notify_smart)),
                         int(active),
                         now,
                         now,
@@ -182,6 +195,7 @@ class AppStorage:
                     is_admin = COALESCE(?, is_admin),
                     notify_loud = COALESCE(?, notify_loud),
                     notify_silent = COALESCE(?, notify_silent),
+                    notify_smart = COALESCE(?, notify_smart),
                     active = ?,
                     updated_at = ?
                 WHERE telegram_id = ?
@@ -193,6 +207,7 @@ class AppStorage:
                     None if is_admin is None else int(is_admin),
                     None if notify_loud is None else int(notify_loud),
                     None if notify_silent is None else int(notify_silent),
+                    None if notify_smart is None else int(notify_smart),
                     int(active),
                     now,
                     telegram_id,
@@ -217,9 +232,9 @@ class AppStorage:
     def set_notification_preference(
         self, telegram_id: int, notification_type: str, enabled: bool
     ) -> None:
-        if notification_type not in {"notifications_loud", "notifications_silent"}:
+        column = self._notification_column(notification_type)
+        if not column:
             raise ValueError("unsupported notification type")
-        column = "notify_loud" if notification_type == "notifications_loud" else "notify_silent"
         with self.connect() as db:
             db.execute(
                 f"UPDATE app_users SET {column} = ?, updated_at = ? WHERE telegram_id = ?",
@@ -227,7 +242,9 @@ class AppStorage:
             )
 
     def notification_enabled(self, telegram_id: int, notification_type: str) -> bool:
-        column = "notify_loud" if notification_type == "notifications_loud" else "notify_silent"
+        column = self._notification_column(notification_type)
+        if not column:
+            return False
         with self.connect() as db:
             row = db.execute(
                 f"SELECT {column}, active FROM app_users WHERE telegram_id = ?",
@@ -236,7 +253,9 @@ class AppStorage:
             return bool(row and row["active"] and row[column])
 
     def notification_recipients(self, notification_type: str) -> list[int]:
-        column = "notify_loud" if notification_type == "notifications_loud" else "notify_silent"
+        column = self._notification_column(notification_type)
+        if not column:
+            return []
         with self.connect() as db:
             rows = db.execute(
                 f"SELECT telegram_id FROM app_users WHERE active = 1 AND {column} = 1"
@@ -446,6 +465,14 @@ class AppStorage:
                 (target, limit),
             ).fetchall()
             return [dict(row) for row in rows]
+
+    @staticmethod
+    def _notification_column(notification_type: str) -> str:
+        return {
+            "notifications_loud": "notify_loud",
+            "notifications_silent": "notify_silent",
+            "notifications_smart": "notify_smart",
+        }.get(notification_type, "")
 
     @staticmethod
     def _ids_from_user_list(value: str) -> set[int]:

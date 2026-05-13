@@ -373,6 +373,7 @@ fields = {
     "cfg_admin_users": ("telegram_bot", "admin_users"),
     "cfg_notifications_loud": ("telegram_bot", "notifications_loud"),
     "cfg_notifications_silent": ("telegram_bot", "notifications_silent"),
+    "cfg_notifications_smart": ("telegram_bot", "notifications_smart"),
     "cfg_openai_model": ("openai", "model"),
     "cfg_openai_token": ("openai", "token"),
     "cfg_smart_instructions_path": ("smart_notifications", "instructions_path"),
@@ -408,6 +409,7 @@ allowed_users=$(prompt_value "Allowed Telegram users" "${cfg_allowed_users:-}" "
 admin_users=$(prompt_value "Admin Telegram users" "${cfg_admin_users:-}" "" false)
 notifications_loud=$(prompt_value "Loud notification targets" "${cfg_notifications_loud:-}" "" false)
 notifications_silent=$(prompt_value "Silent notification targets" "${cfg_notifications_silent:-}" "" false)
+notifications_smart=$(prompt_value "Smart notification targets" "${cfg_notifications_smart:-}" "" false)
 openai_model=$(prompt_value "OpenAI model (optional)" "${cfg_openai_model:-}" "gpt-4o-mini" false)
 openai_token=$(prompt_secret_value "OpenAI API token (optional)" "${cfg_openai_token:-}" false)
 
@@ -447,7 +449,7 @@ if [ -z "$smart_instructions_path" ] || [[ "$smart_instructions_path" == *"<"* ]
 fi
 
 info "Updating external configuration..."
-python3 - "$config_path" "$omd_site" "$api_token" "$bot_password" "$selected_version" "$state_dir" "$log_dir" "$run_dir" "$socket_path" "$bridge_socket_path" "$notification_queue" "$fallback_queue" "$language" "$allowed_users" "$admin_users" "$notifications_loud" "$notifications_silent" "$openai_model" "$openai_token" "$smart_instructions_path" "$web_base_url" "$web_automation_user" "$web_automation_secret" "$web_graph_count" "$web_allow_legacy_url_auth" <<'PY'
+python3 - "$config_path" "$omd_site" "$api_token" "$bot_password" "$selected_version" "$state_dir" "$log_dir" "$run_dir" "$socket_path" "$bridge_socket_path" "$notification_queue" "$fallback_queue" "$language" "$allowed_users" "$admin_users" "$notifications_loud" "$notifications_silent" "$notifications_smart" "$openai_model" "$openai_token" "$smart_instructions_path" "$web_base_url" "$web_automation_user" "$web_automation_secret" "$web_graph_count" "$web_allow_legacy_url_auth" <<'PY'
 import configparser
 import secrets
 import sys
@@ -471,6 +473,7 @@ from pathlib import Path
     admin_users,
     notifications_loud,
     notifications_silent,
+    notifications_smart,
     openai_model,
     openai_token,
     smart_instructions_path,
@@ -501,6 +504,7 @@ config.set("telegram_bot", "allowed_users", allowed_users)
 config.set("telegram_bot", "admin_users", admin_users)
 config.set("telegram_bot", "notifications_loud", notifications_loud)
 config.set("telegram_bot", "notifications_silent", notifications_silent)
+config.set("telegram_bot", "notifications_smart", notifications_smart)
 
 current_token = config.get("telegram_bot", "api_token", fallback="")
 if not current_token or current_token == "<api_token>":

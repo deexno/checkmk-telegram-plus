@@ -32,6 +32,7 @@
               <div class="form-check form-switch"><input class="form-check-input" name="is_admin" type="checkbox" {% if user.is_admin %}checked{% endif %}> <label class="form-check-label">Admin</label></div>
               <div class="form-check form-switch"><input class="form-check-input" name="notify_loud" type="checkbox" {% if user.notify_loud %}checked{% endif %}> <label class="form-check-label">Loud</label></div>
               <div class="form-check form-switch"><input class="form-check-input" name="notify_silent" type="checkbox" {% if user.notify_silent %}checked{% endif %}> <label class="form-check-label">Silent</label></div>
+              <div class="form-check form-switch"><input class="form-check-input" name="notify_smart" type="checkbox" {% if user.notify_smart %}checked{% endif %}> <label class="form-check-label">Smart</label></div>
             </form>
           </td>
           <td><button class="btn btn-primary btn-sm" form="user-{{ user.telegram_id }}" type="submit"><i class="bi bi-check2 me-1"></i>Speichern</button></td>

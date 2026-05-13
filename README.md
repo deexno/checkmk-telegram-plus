@@ -94,7 +94,7 @@ The installer still opens the configuration review so upgrades can keep or corre
 <img src="src/Screenshot_04.png" alt="Telegram Bot" height="auto" width="700" />
 For your information, you can use the first parameter to determine whether a notification should be sent loud (`notifications_loud`) or silent (`notifications_silent`). Silent notifications pop up in the chat, but the device does not vibrate or make a notification sound. This method can be used, for example, to differentiate between important and unimportant notifications.
 
-You can also use `notifications_smart` as the first parameter. Smart notifications send the full Checkmk alert to the bot, use the OpenAI Responses API plus recent SQLite notification history, and then decide whether the alert should be sent loud, sent silent, or suppressed. Create this rule broadly in Checkmk if you want the bot to filter duplicates, flapping, likely follow-up failures and relevant recoveries itself. Configure the OpenAI token in `/etc/checkmk-telegram-plus/<omd_site_name>.ini`; customize the policy in `/etc/checkmk-telegram-plus/smart-notification-instructions.txt`.<br><br>
+You can also use `notifications_smart` as the first parameter. Smart notifications send the full Checkmk alert to the bot, use the OpenAI Responses API plus recent SQLite notification history, and then decide whether the alert should be sent loud, sent silent, or suppressed. Create this rule broadly in Checkmk if you want the bot to filter duplicates, flapping, likely follow-up failures and relevant recoveries itself. Users can subscribe to Smart notifications in Telegram under notification settings. Configure the OpenAI token in `/etc/checkmk-telegram-plus/<omd_site_name>.ini`; customize the policy in the web admin config page or in `/etc/checkmk-telegram-plus/smart-notification-instructions.txt`.<br><br>
 
 **To update the bot, run the installation command again and choose the release version you want to install.**
 
@@ -179,6 +179,7 @@ allowed_users = XXXXXXXXXXXXXX
 admin_users = XXXXXXXXXXXXXX
 notifications_loud = XXXXXXXXXXXXXX
 notifications_silent = XXXXXXXXXXXXXX
+notifications_smart = XXXXXXXXXXXXXX
 
 [check_mk]
 site = XXXXXXXXXXXXXX

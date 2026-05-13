@@ -14,6 +14,19 @@
     <p class="text-secondary">Quelle: <code>{{ config_path }}</code></p>
     <form method="post">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="mb-4">
+        <label class="form-label fw-semibold" for="smart_instructions">
+          <i class="bi bi-magic me-2 text-primary"></i>Smart Notification Instructions
+        </label>
+        <textarea
+          class="form-control font-monospace"
+          id="smart_instructions"
+          name="smart_instructions"
+          rows="16"
+          spellcheck="false"
+        >{{ smart_instructions }}</textarea>
+        <div class="form-text">Quelle: <code>{{ smart_instructions_path }}</code></div>
+      </div>
       <div class="accordion" id="configAccordion">
         {% for section, values in safe_config.items() %}
         <div class="accordion-item">
