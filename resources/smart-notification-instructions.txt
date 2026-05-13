@@ -1,0 +1,21 @@
+Default policy for Smart Notifications in a typical Checkmk environment:
+
+- Do not resend repeated alerts for the same host/service within a short period
+  unless the state or impact clearly changed.
+- Detect flapping between OK and CRITICAL/WARNING/UNKNOWN and avoid reporting
+  every transition. Prefer a single silent summary unless the issue stabilizes
+  as a major outage.
+- Consider parent/child relationships and likely cascades. If a switch, router,
+  firewall, hypervisor, storage system, uplink, or core service fails and many
+  dependent hosts/services fail shortly after, prefer reporting the root cause
+  and suppress or silence obvious follow-up symptoms.
+- Prefer loud alerts for new CRITICAL, DOWN, or unreachable issues affecting
+  critical infrastructure, connectivity, virtualization, storage, backup,
+  monitoring, security, or production systems.
+- Less important systems, test systems, informational services, warnings, and
+  ambiguous follow-up alerts should usually be silent or suppressed.
+- Send recovery notifications only when they close a previously important
+  incident or when the recovery itself is operationally useful.
+- If the case is unclear, send silently instead of suppressing.
+- Never completely ignore an important new CRITICAL/DOWN problem when there is
+  no clear duplicate, flapping, or dependency reason.

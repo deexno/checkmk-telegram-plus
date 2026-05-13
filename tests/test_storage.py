@@ -95,6 +95,28 @@ class StorageTest(unittest.TestCase):
             self.assertEqual(storage.notification_event("evt-2")["hostname"], "host2")
             self.assertEqual(storage.audit_for_target("evt-2")[0]["actor_name"], "alice")
 
+    def test_smart_notification_history_is_compact(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            storage = AppStorage(Path(tmp) / "state.sqlite3")
+            storage.record_notification_event(
+                event_id="evt-3",
+                notification_type="notifications_smart",
+                ip_address="192.0.2.3",
+                hostname="switch1",
+                hostgroup="network",
+                service_description="HOST STATUS",
+                from_state="UP",
+                to_state="DOWN",
+                output="x" * 600,
+                raw_event="raw",
+            )
+
+            history = storage.smart_notification_history()
+
+            self.assertEqual(history[0]["event_id"], "evt-3")
+            self.assertEqual(history[0]["notification_type"], "notifications_smart")
+            self.assertTrue(history[0]["output"].endswith("...[truncated]"))
+
 
 if __name__ == "__main__":
     unittest.main()

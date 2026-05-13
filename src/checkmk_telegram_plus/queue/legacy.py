@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import tempfile
@@ -14,7 +15,9 @@ def legacy_queue_line(payload: Mapping[str, object]) -> str:
     event_id = str(payload["event_id"])
     priority = str(payload.get("priority", 0))
     created = str(payload.get("created", ""))
-    return f"{event}|||{event_id}|||{priority}|||{created}\n"
+    payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    payload_b64 = base64.b64encode(payload_json.encode("utf-8")).decode("ascii")
+    return f"{event}|||{event_id}|||{priority}|||{created}|||{payload_b64}\n"
 
 
 def _existing_ids(path: Path) -> set[str]:

@@ -4,13 +4,13 @@
   <div>
     <div class="page-kicker">Explorer</div>
     <h1 class="page-title mb-1">Host & Service Lookup</h1>
-    <p class="text-secondary mb-0">Wähle Hostgruppe, Host und optional einen Service. Die Ansicht aktualisiert sich automatisch.</p>
+    <p class="text-secondary mb-0">Wähle Hostgruppe und Host. Die Ansicht zeigt danach alle Services automatisch.</p>
   </div>
 </div>
 
 {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
 
-<div class="step-row mb-3">
+<div class="step-row step-row-compact mb-3">
   <div class="step-chip active">
     <div class="step-number">1</div>
     <div>
@@ -25,15 +25,9 @@
       <div class="small text-secondary text-break">{{ selected_host or "Nach Gruppe wählen" }}</div>
     </div>
   </div>
-  <div class="step-chip {% if selected_host %}active{% else %}disabled{% endif %}">
-    <div class="step-number">3</div>
-    <div>
-      <div class="fw-bold">Service</div>
-      <div class="small text-secondary text-break">{{ selected_service or "Optional" }}</div>
-    </div>
-  </div>
 </div>
 
+{% if not selected_hostgroup %}
 <div class="card mb-4">
   <div class="card-body choice-panel">
     <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-3">
@@ -61,8 +55,9 @@
     </div>
   </div>
 </div>
+{% endif %}
 
-{% if selected_hostgroup %}
+{% if selected_hostgroup and not selected_host %}
 <div class="card mb-4">
   <div class="card-body choice-panel">
     <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-3">
@@ -96,89 +91,16 @@
 </div>
 {% endif %}
 
-{% if selected_host and services %}
-<div class="card mb-4">
-  <div class="card-body choice-panel">
-    <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-3">
-      <div>
-        <div class="fw-semibold"><i class="bi bi-cpu me-2 text-primary"></i>Service optional auswählen</div>
-        <div class="small text-secondary">{{ services | length }} Services für {{ selected_host }}</div>
-      </div>
-      <div class="search-field col-12 col-lg-4">
-        <i class="bi bi-search"></i>
-        <input class="form-control" type="search" placeholder="Service suchen" data-choice-search="#serviceChoices">
-      </div>
-    </div>
-    <div id="serviceChoices" class="choice-grid">
-      {% for service in services %}
-        <a class="choice-card {% if service.description == selected_service %}active{% endif %}" href="{{ url_for('monitoring', hostgroup=selected_hostgroup, host=selected_host, service=service.description) }}" data-search-text="{{ service.description }} {{ service.state }}">
-          <div class="choice-main">
-            <div class="choice-title">{{ service.description }}</div>
-            <div class="choice-subtitle">Service-Details öffnen</div>
-          </div>
-          {{ service.state | state | safe }}
-        </a>
-      {% endfor %}
-    </div>
-  </div>
-</div>
-{% endif %}
-
 {% if host_status is not none %}
-<div class="row g-3">
-  <div class="col-12 col-xl-4">
-    <div class="card metric-card h-100"><div class="card-body position-relative">
-      <div class="d-flex align-items-center justify-content-between mb-3">
-        <div class="icon-tile"><i class="bi bi-hdd-rack"></i></div>
-        {{ host_status | state | safe }}
-      </div>
-      <div class="text-secondary mb-1">Hoststatus</div>
-      <h2 class="h4 mb-0 text-break">{{ selected_host }}</h2>
-    </div></div>
-  </div>
-  <div class="col-12 col-xl-8">
-    <div class="card">
-      <div class="card-header bg-white d-flex align-items-center justify-content-between">
-        <div class="fw-semibold"><i class="bi bi-list-check me-2 text-primary"></i>Services</div>
-        <span class="badge text-bg-light border">{{ services | length }} Einträge</span>
-      </div>
-      <div class="table-responsive">
-        <table class="table soft-table mb-0">
-          <thead><tr><th>Service</th><th>Status</th></tr></thead>
-          <tbody>
-          {% for service in services %}
-            <tr><td class="fw-semibold">{{ service.description }}</td><td>{{ service.state | state | safe }}</td></tr>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-</div>
-{% endif %}
-
-{% if service_details %}
-<div class="card mt-3">
-  <div class="card-header bg-white d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2">
-    <div class="fw-semibold"><i class="bi bi-terminal me-2 text-primary"></i>{{ selected_host }} / {{ selected_service }}</div>
-    {{ service_details.state | state | safe }}
-  </div>
-  <div class="card-body">
-    <div class="row g-3">
-      <div class="col-12 col-lg-6">
-        <h2 class="h6 text-secondary">Summary</h2>
-        <pre class="code-output bg-white border rounded-4 p-3">{{ service_details.plugin_output }}</pre>
-      </div>
-      <div class="col-12 col-lg-6">
-        <h2 class="h6 text-secondary">Metriken</h2>
-        <pre class="code-output bg-white border rounded-4 p-3">{{ service_details.perf_data }}</pre>
-      </div>
-      <div class="col-12">
-        <h2 class="h6 text-secondary">Details</h2>
-        <pre class="code-output bg-white border rounded-4 p-3">{{ service_details.long_plugin_output }}</pre>
-      </div>
-    </div>
-  </div>
+<div class="table-responsive">
+  <table class="table soft-table mb-0">
+    <thead><tr><th>Service</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for service in services %}
+      <tr><td class="fw-semibold">{{ service.description }}</td><td>{{ service.state | state | safe }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
 </div>
 {% endif %}
 {% endblock %}

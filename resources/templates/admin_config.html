@@ -4,7 +4,7 @@
   <div>
     <div class="page-kicker">Configuration</div>
     <h1 class="page-title mb-1">Konfiguration</h1>
-    <p class="text-secondary mb-0">Lesbare Übersicht der aktiven Config. Secrets bleiben maskiert.</p>
+    <p class="text-secondary mb-0">Aktive Config bearbeiten. Leere Secret-Felder behalten den bisherigen Wert.</p>
   </div>
 </div>
 
@@ -12,27 +12,52 @@
   <div class="card-header bg-white fw-semibold"><i class="bi bi-sliders me-2 text-primary"></i>Runtime Config</div>
   <div class="card-body">
     <p class="text-secondary">Quelle: <code>{{ config_path }}</code></p>
-    <div class="accordion" id="configAccordion">
-      {% for section, values in safe_config.items() %}
-      <div class="accordion-item">
-        <h2 class="accordion-header">
-          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#cfg-{{ loop.index }}">
-            [{{ section }}]
-          </button>
-        </h2>
-        <div id="cfg-{{ loop.index }}" class="accordion-collapse collapse" data-bs-parent="#configAccordion">
-          <div class="accordion-body">
-            <dl class="row mb-0">
-              {% for key, value in values.items() %}
-                <dt class="col-12 col-md-4">{{ key }}</dt>
-                <dd class="col-12 col-md-8 text-break"><code>{{ value }}</code></dd>
-              {% endfor %}
-            </dl>
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="accordion" id="configAccordion">
+        {% for section, values in safe_config.items() %}
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button
+              class="accordion-button collapsed"
+              type="button"
+              data-bs-toggle="collapse"
+              data-bs-target="#cfg-{{ loop.index }}"
+            >
+              [{{ section }}]
+            </button>
+          </h2>
+          <div id="cfg-{{ loop.index }}" class="accordion-collapse collapse" data-bs-parent="#configAccordion">
+            <div class="accordion-body">
+              <div class="row g-3">
+                {% for key, item in values.items() %}
+                  <div class="col-12 col-xl-6">
+                    <label class="form-label fw-semibold" for="{{ item.field }}">{{ key }}</label>
+                    <input
+                      class="form-control font-monospace"
+                      id="{{ item.field }}"
+                      name="{{ item.field }}"
+                      type="{{ 'password' if item.is_secret else 'text' }}"
+                      value="{{ item.value }}"
+                      placeholder="{{ item.display_value if item.is_secret else '' }}"
+                      autocomplete="off"
+                    >
+                    {% if item.is_secret and item.display_value %}
+                      <div class="form-text">Aktuell: <code>{{ item.display_value }}</code></div>
+                    {% endif %}
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
           </div>
         </div>
+        {% endfor %}
       </div>
-      {% endfor %}
-    </div>
+      <div class="d-flex flex-column flex-md-row justify-content-md-end gap-2 mt-4">
+        <a class="btn btn-outline-secondary" href="{{ url_for('admin_config') }}">Verwerfen</a>
+        <button class="btn btn-primary" type="submit"><i class="bi bi-save me-1"></i>Config speichern</button>
+      </div>
+    </form>
   </div>
 </div>
 {% endblock %}

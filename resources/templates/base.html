@@ -107,6 +107,12 @@
       box-shadow: 0 12px 30px rgba(31, 42, 68, .09);
     }
     .nav-pill i { font-size: 1.05rem; color: var(--ctp-brand); }
+    .nav-button {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      text-align: left;
+    }
     .mobile-nav-list .nav-pill {
       min-height: 58px;
       margin-bottom: 0;
@@ -126,15 +132,6 @@
       color: var(--ctp-brand);
       font-family: "bootstrap-icons";
       font-size: 1rem;
-    }
-    .topbar {
-      position: sticky;
-      top: 0;
-      z-index: 20;
-      padding: 14px 22px;
-      background: rgba(244, 247, 251, .72);
-      border-bottom: 1px solid var(--ctp-line);
-      backdrop-filter: blur(18px);
     }
     .content-wrap { padding: 22px; }
     .page-kicker {
@@ -236,6 +233,9 @@
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: .75rem;
+    }
+    .step-row-compact {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     .step-chip {
       min-height: 78px;
@@ -391,7 +391,6 @@
         border-right: 0;
         border-bottom: 1px solid var(--ctp-line);
       }
-      .topbar { position: relative; padding: 14px; }
       .content-wrap { padding: 14px; }
       .soft-table { min-width: 760px; }
       .step-row { grid-template-columns: 1fr; }
@@ -407,8 +406,8 @@
       <div class="d-flex align-items-center gap-3 min-w-0">
         <div class="brand-mark flex-shrink-0"><i class="bi bi-activity"></i></div>
         <div class="min-w-0">
-          <div class="fw-bold text-truncate">Telegram Plus</div>
-          <div class="small text-secondary text-truncate">Checkmk Control Center</div>
+          <div class="fw-bold text-truncate">Checkmk Telegram Plus</div>
+          <div class="small text-secondary text-truncate">Control Center</div>
         </div>
       </div>
       <button class="mobile-menu-button d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileNavigation" aria-controls="mobileNavigation" aria-label="Navigation öffnen">
@@ -418,7 +417,6 @@
     <div class="d-none d-lg-block">
       <a class="nav-pill {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}"><i class="bi bi-speedometer2"></i><span>Dashboard</span></a>
       <a class="nav-pill {% if request.endpoint == 'monitoring' %}active{% endif %}" href="{{ url_for('monitoring') }}"><i class="bi bi-search"></i><span>Monitoring</span></a>
-      <a class="nav-pill {% if request.endpoint == 'problems' %}active{% endif %}" href="{{ url_for('problems') }}"><i class="bi bi-exclamation-triangle"></i><span>Probleme</span></a>
       <a class="nav-pill {% if request.endpoint == 'admin_notifications' %}active{% endif %}" href="{{ url_for('admin_notifications') }}"><i class="bi bi-bell"></i><span>Alerts</span></a>
       {% if is_web_admin %}
       <a class="nav-pill {% if request.endpoint == 'admin_users' %}active{% endif %}" href="{{ url_for('admin_users') }}"><i class="bi bi-people"></i><span>Benutzer</span></a>
@@ -433,6 +431,10 @@
         <div class="d-flex align-items-center gap-2 small text-secondary mb-2"><span class="status-dot"></span>Service erreichbar</div>
         <div class="fw-semibold text-break">{{ site }}</div>
       </div>
+      <form class="mt-3" method="post" action="{{ url_for('logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="nav-pill nav-button" type="submit"><i class="bi bi-box-arrow-right"></i><span>Logout</span></button>
+      </form>
     </div>
   </aside>
   <div class="offcanvas offcanvas-start mobile-nav-drawer d-lg-none" tabindex="-1" id="mobileNavigation" aria-labelledby="mobileNavigationLabel">
@@ -450,7 +452,6 @@
       <nav class="mobile-nav-list" aria-label="Mobile Navigation">
         <a class="nav-pill {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}"><i class="bi bi-speedometer2"></i><span>Dashboard</span></a>
         <a class="nav-pill {% if request.endpoint == 'monitoring' %}active{% endif %}" href="{{ url_for('monitoring') }}"><i class="bi bi-search"></i><span>Monitoring</span></a>
-        <a class="nav-pill {% if request.endpoint == 'problems' %}active{% endif %}" href="{{ url_for('problems') }}"><i class="bi bi-exclamation-triangle"></i><span>Probleme</span></a>
         <a class="nav-pill {% if request.endpoint == 'admin_notifications' %}active{% endif %}" href="{{ url_for('admin_notifications') }}"><i class="bi bi-bell"></i><span>Alerts</span></a>
         {% if is_web_admin %}
         <a class="nav-pill {% if request.endpoint == 'admin_users' %}active{% endif %}" href="{{ url_for('admin_users') }}"><i class="bi bi-people"></i><span>Benutzer</span></a>
@@ -466,21 +467,11 @@
       </div>
       <form method="post" action="{{ url_for('logout') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="btn btn-outline-secondary w-100" type="submit"><i class="bi bi-box-arrow-right me-1"></i>Logout</button>
+        <button class="nav-pill nav-button" type="submit"><i class="bi bi-box-arrow-right"></i><span>Logout</span></button>
       </form>
     </div>
   </div>
   <section>
-    <div class="topbar d-flex align-items-center justify-content-between gap-3">
-      <div>
-        <div class="page-kicker">Live Operations</div>
-        <div class="fw-semibold">Site <span class="text-primary">{{ site }}</span></div>
-      </div>
-      <form method="post" action="{{ url_for('logout') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="btn btn-outline-secondary btn-sm" type="submit"><i class="bi bi-box-arrow-right me-1"></i>Logout</button>
-      </form>
-    </div>
 {% endif %}
 <main class="{% if is_authenticated %}content-wrap{% else %}container-fluid py-4{% endif %}">
   {% for category, message in get_flashed_messages(with_categories=true) %}

@@ -52,6 +52,11 @@ app.config.update(
 )
 
 
+def load_config() -> None:
+    config.clear()
+    config.read(CONFIG_PATH)
+
+
 def web_setting(key: str, default: str) -> str:
     if not config.has_section("web"):
         return default
@@ -113,6 +118,52 @@ def validate_csrf() -> None:
     submitted = request.form.get("csrf_token", "")
     if not token or not hmac.compare_digest(token, submitted):
         abort(400)
+
+
+def is_secret_config_key(key: str) -> bool:
+    return any(secret in key.lower() for secret in ("token", "password", "secret"))
+
+
+def config_field_name(section: str, key: str) -> str:
+    digest = hashlib.sha256(f"{section}\0{key}".encode("utf-8")).hexdigest()[:16]
+    return f"cfg_{digest}"
+
+
+def config_form_data() -> dict[str, dict[str, dict[str, str | bool]]]:
+    form_data = {}
+    for section in config.sections():
+        form_data[section] = {}
+        for key, value in config.items(section):
+            is_secret = is_secret_config_key(key)
+            form_data[section][key] = {
+                "field": config_field_name(section, key),
+                "is_secret": is_secret,
+                "value": "" if is_secret else value,
+                "display_value": "configured" if is_secret and value and not value.startswith("<") else value,
+            }
+    return form_data
+
+
+def update_config_from_form() -> list[str]:
+    changed = []
+    for section in config.sections():
+        for key, current_value in list(config.items(section)):
+            field_name = config_field_name(section, key)
+            if field_name not in request.form:
+                continue
+            submitted_value = request.form.get(field_name, "")
+            if is_secret_config_key(key) and submitted_value == "":
+                continue
+            if submitted_value != current_value:
+                config.set(section, key, submitted_value)
+                changed.append(f"{section}.{key}")
+    return changed
+
+
+def save_config() -> None:
+    config_path = Path(CONFIG_PATH)
+    with config_path.open("w", encoding="utf-8") as configfile:
+        config.write(configfile)
 
 
 def state_badge(state):
@@ -247,9 +298,7 @@ def monitoring():
     services = []
     selected_hostgroup = request.values.get("hostgroup", "")
     selected_host = request.values.get("host", "")
-    selected_service = request.values.get("service", "")
     host_status = None
-    service_details = None
     error = ""
 
     try:
@@ -261,8 +310,6 @@ def monitoring():
         if selected_host:
             host_status = checkmk.host_status(selected_host)
             services = checkmk.list_services(selected_host)
-        if selected_host and selected_service:
-            service_details = checkmk.service_details(selected_host, selected_service)
     except Exception as exc:
         error = str(exc)
 
@@ -274,9 +321,7 @@ def monitoring():
         services=services,
         selected_hostgroup=selected_hostgroup,
         selected_host=selected_host,
-        selected_service=selected_service,
         host_status=host_status,
-        service_details=service_details,
         state_badge=state_badge,
         error=error,
     )
@@ -285,50 +330,7 @@ def monitoring():
 @app.route("/problems")
 @require_login
 def problems():
-    hostgroups = []
-    hosts = []
-    host_cards = []
-    host_problems = []
-    service_problems = []
-    selected_hostgroup = request.args.get("hostgroup", "")
-    error = ""
-    try:
-        hostgroups = checkmk.list_hostgroups()
-        if selected_hostgroup:
-            hosts = checkmk.list_hosts(selected_hostgroup)
-            host_problems = checkmk.host_problems(selected_hostgroup)
-            service_problems = checkmk.service_problems(selected_hostgroup)
-            service_problem_counts = {}
-            for service in service_problems:
-                hostname = service.get("hostname", "")
-                service_problem_counts[hostname] = service_problem_counts.get(hostname, 0) + 1
-            host_problem_states = {
-                host.get("hostname"): host.get("state") for host in host_problems
-            }
-            for hostname in hosts:
-                state = host_problem_states.get(hostname)
-                if state is None:
-                    state = checkmk.host_status(hostname)
-                host_cards.append(
-                    host_card(
-                        hostname,
-                        state,
-                        service_problem_counts.get(hostname, 0),
-                    )
-                )
-    except Exception as exc:
-        error = str(exc)
-    return render_template(
-        "problems.html",
-        hostgroups=hostgroups,
-        hosts=hosts,
-        host_cards=host_cards,
-        selected_hostgroup=selected_hostgroup,
-        host_problems=host_problems,
-        service_problems=service_problems,
-        state_badge=state_badge,
-        error=error,
-    )
+    return redirect(url_for("monitoring", **request.args))
 
 
 @app.route("/admin/users", methods=["GET", "POST"])
@@ -379,18 +381,33 @@ def admin_audit():
     return render_template("admin_audit.html", events=storage.recent_audit(150))
 
 
-@app.route("/admin/config")
+@app.route("/admin/config", methods=["GET", "POST"])
 @require_admin
 def admin_config():
-    safe_config = {}
-    for section in config.sections():
-        safe_config[section] = {}
-        for key, value in config.items(section):
-            if any(secret in key.lower() for secret in ("token", "password", "secret")):
-                safe_config[section][key] = "configured" if value and not value.startswith("<") else ""
+    load_config()
+    if request.method == "POST":
+        validate_csrf()
+        try:
+            changed = update_config_from_form()
+            save_config()
+        except OSError as exc:
+            flash(f"Config konnte nicht gespeichert werden: {exc}", "danger")
+        else:
+            storage.add_audit(
+                actor_type="web",
+                action="config_updated",
+                details=f"ip={request.remote_addr} changed={','.join(changed) or 'none'}",
+            )
+            if changed:
+                flash("Config wurde gespeichert.", "success")
             else:
-                safe_config[section][key] = value
-    return render_template("admin_config.html", config_path=CONFIG_PATH, safe_config=safe_config)
+                flash("Keine Config-Änderungen erkannt.", "info")
+            return redirect(url_for("admin_config"))
+    return render_template(
+        "admin_config.html",
+        config_path=CONFIG_PATH,
+        safe_config=config_form_data(),
+    )
 
 
 @app.template_filter("state")

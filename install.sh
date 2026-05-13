@@ -172,6 +172,7 @@ venv_dir="$external_root/venv"
 app_user="checkmk-telegram-plus"
 config_dir="/etc/checkmk-telegram-plus"
 config_path="$config_dir/$omd_site.ini"
+smart_instructions_path="$config_dir/smart-notification-instructions.txt"
 state_root="/var/lib/checkmk-telegram-plus"
 state_dir="$state_root/$omd_site"
 log_dir="/var/log/checkmk-telegram-plus"
@@ -374,6 +375,7 @@ fields = {
     "cfg_notifications_silent": ("telegram_bot", "notifications_silent"),
     "cfg_openai_model": ("openai", "model"),
     "cfg_openai_token": ("openai", "token"),
+    "cfg_smart_instructions_path": ("smart_notifications", "instructions_path"),
     "cfg_web_base_url": ("checkmk_web", "base_url"),
     "cfg_web_automation_user": ("checkmk_web", "automation_user"),
     "cfg_web_automation_secret": ("checkmk_web", "automation_secret"),
@@ -439,8 +441,13 @@ if [[ "$review_web" =~ ^[Yy]$ ]]; then
     web_allow_legacy_url_auth=$(prompt_value "Allow legacy URL auth for graph export? [yes/no]" "$web_allow_legacy_url_auth" "no" false)
 fi
 
+smart_instructions_path="${cfg_smart_instructions_path:-$smart_instructions_path}"
+if [ -z "$smart_instructions_path" ] || [[ "$smart_instructions_path" == *"<"* ]]; then
+    smart_instructions_path="$config_dir/smart-notification-instructions.txt"
+fi
+
 info "Updating external configuration..."
-python3 - "$config_path" "$omd_site" "$api_token" "$bot_password" "$selected_version" "$state_dir" "$log_dir" "$run_dir" "$socket_path" "$bridge_socket_path" "$notification_queue" "$fallback_queue" "$language" "$allowed_users" "$admin_users" "$notifications_loud" "$notifications_silent" "$openai_model" "$openai_token" "$web_base_url" "$web_automation_user" "$web_automation_secret" "$web_graph_count" "$web_allow_legacy_url_auth" <<'PY'
+python3 - "$config_path" "$omd_site" "$api_token" "$bot_password" "$selected_version" "$state_dir" "$log_dir" "$run_dir" "$socket_path" "$bridge_socket_path" "$notification_queue" "$fallback_queue" "$language" "$allowed_users" "$admin_users" "$notifications_loud" "$notifications_silent" "$openai_model" "$openai_token" "$smart_instructions_path" "$web_base_url" "$web_automation_user" "$web_automation_secret" "$web_graph_count" "$web_allow_legacy_url_auth" <<'PY'
 import configparser
 import secrets
 import sys
@@ -466,6 +473,7 @@ from pathlib import Path
     notifications_silent,
     openai_model,
     openai_token,
+    smart_instructions_path,
     web_base_url,
     web_automation_user,
     web_automation_secret,
@@ -486,6 +494,7 @@ ensure("check_mk")
 ensure("paths")
 ensure("checkmk_web")
 ensure("web")
+ensure("smart_notifications")
 
 config.set("telegram_bot", "language", language or "en")
 config.set("telegram_bot", "allowed_users", allowed_users)
@@ -549,6 +558,12 @@ config.set("web", "admin_password", current_web_admin_password)
 ensure("openai")
 config.set("openai", "model", openai_model or "gpt-4o-mini")
 config.set("openai", "token", openai_token or "YOUR-TOKEN")
+config.set(
+    "smart_notifications",
+    "instructions_path",
+    smart_instructions_path
+    or "/etc/checkmk-telegram-plus/smart-notification-instructions.txt",
+)
 
 if config.has_section("openai"):
     if config.get("openai", "token", fallback="") == "<openai_token>":
@@ -560,6 +575,13 @@ PY
 
 chown "$app_user:$app_user" "$config_path"
 chmod 640 "$config_path"
+
+if [ ! -f "$smart_instructions_path" ]; then
+    cp "$source_dir/resources/smart-notification-instructions.txt" "$smart_instructions_path"
+    info "Created Smart Notification instructions at $smart_instructions_path"
+fi
+chown "$app_user:$app_user" "$smart_instructions_path"
+chmod 640 "$smart_instructions_path"
 
 info "Installing external app files..."
 rm -rf "$app_dir.new"

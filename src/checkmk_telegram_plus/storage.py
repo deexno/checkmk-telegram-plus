@@ -339,6 +339,32 @@ class AppStorage:
             ).fetchall()
             return [dict(row) for row in rows]
 
+    def smart_notification_history(self, limit: int = 80) -> list[dict[str, Any]]:
+        with self.connect() as db:
+            rows = db.execute(
+                """
+                SELECT e.event_id, e.notification_type, e.ip_address, e.hostname,
+                    e.hostgroup, e.service_description, e.from_state, e.to_state,
+                    e.output, e.created_at,
+                    COUNT(d.id) AS delivery_count,
+                    SUM(CASE WHEN d.status = 'sent' THEN 1 ELSE 0 END) AS sent_count
+                FROM notification_events e
+                LEFT JOIN notification_deliveries d ON d.event_id = e.event_id
+                GROUP BY e.event_id
+                ORDER BY e.created_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        history = []
+        for row in rows:
+            item = dict(row)
+            output = item.get("output") or ""
+            if len(output) > 500:
+                item["output"] = output[:500] + "...[truncated]"
+            history.append(item)
+        return history
+
     def notification_event(self, event_id: str) -> dict[str, Any] | None:
         with self.connect() as db:
             row = db.execute(

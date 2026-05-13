@@ -1,6 +1,7 @@
 import base64
 import configparser
 import html
+import json
 import logging
 import os
 import secrets
@@ -122,6 +123,66 @@ notifcation_queue = fqueue.Queue(notify_query_path)
 notification_socket_service = None
 storage = AppStorage(database_path_from_config(config))
 storage.migrate_from_config(config)
+
+SMART_NOTIFICATION_TYPE = "notifications_smart"
+SMART_DECISION_TYPES = {"notifications_loud", "notifications_silent"}
+
+SMART_SYSTEM_INSTRUCTIONS = """
+You evaluate Checkmk notifications for a Telegram alert bot.
+Decide whether the current notification should be sent or suppressed.
+If it should be sent, decide whether it should be loud or silent.
+Use the current alert, recent notification history, possible duplicate alerts,
+flapping, dependency/cascade failures, recovery relevance, and user rules.
+Be conservative with loud notifications, but do not suppress important incidents.
+Return only a machine-readable JSON object matching the requested schema.
+""".strip()
+
+DEFAULT_SMART_USER_INSTRUCTIONS = """
+Default policy for a typical Checkmk environment:
+
+- Do not resend repeated alerts for the same host/service within a short period
+  unless the state or impact clearly changed.
+- Detect flapping between OK and CRITICAL/WARNING/UNKNOWN and avoid reporting
+  every transition. Prefer a single silent summary unless the issue stabilizes
+  as a major outage.
+- Consider parent/child relationships and likely cascades. If a switch, router,
+  firewall, hypervisor, storage system, uplink, or core service fails and many
+  dependent hosts/services fail shortly after, prefer reporting the root cause
+  and suppress or silence obvious follow-up symptoms.
+- Prefer loud alerts for new CRITICAL, DOWN, or unreachable issues affecting
+  critical infrastructure, connectivity, virtualization, storage, backup,
+  monitoring, security, or production systems.
+- Less important systems, test systems, informational services, warnings, and
+  ambiguous follow-up alerts should usually be silent or suppressed.
+- Send recovery notifications only when they close a previously important
+  incident or when the recovery itself is operationally useful.
+- If the case is unclear, send silently instead of suppressing.
+- Never completely ignore an important new CRITICAL/DOWN problem when there is
+  no clear duplicate, flapping, or dependency reason.
+""".strip()
+
+
+def smart_instructions_path() -> Path:
+    configured = (
+        config.get("smart_notifications", "instructions_path", fallback="")
+        if config.has_section("smart_notifications")
+        else ""
+    )
+    if configured:
+        return Path(configured)
+    return Path("/etc/checkmk-telegram-plus/smart-notification-instructions.txt")
+
+
+def load_smart_user_instructions() -> str:
+    path = smart_instructions_path()
+    try:
+        if path.exists():
+            value = path.read_text(encoding="utf-8").strip()
+            if value:
+                return value
+    except Exception as exc:
+        logger.warning("Could not read smart notification instructions: %s", exc)
+    return DEFAULT_SMART_USER_INSTRUCTIONS
 
 
 def start_notification_socket_service():
@@ -310,6 +371,134 @@ def audit_callback_action(update, action, hostname="", description="", details="
         details=" ".join(part for part in detail_parts if part),
     )
     return event_id
+
+
+def smart_current_alert(
+    notification_type,
+    ip,
+    hostname,
+    hostgroup,
+    description,
+    from_state,
+    to_state,
+    output,
+    payload,
+):
+    checkmk_fields = {}
+    if isinstance(payload, dict) and isinstance(payload.get("checkmk"), dict):
+        checkmk_fields = payload["checkmk"]
+    return {
+        "notification_type": notification_type,
+        "ip_address": ip,
+        "hostname": hostname,
+        "hostgroup": hostgroup,
+        "service_description": description,
+        "from_state": from_state,
+        "to_state": to_state,
+        "output": output,
+        "created": payload.get("created") if isinstance(payload, dict) else "",
+        "service": payload.get("service") if isinstance(payload, dict) else None,
+        "checkmk_fields": checkmk_fields,
+    }
+
+
+def extract_response_text(response_json):
+    if isinstance(response_json.get("output_text"), str):
+        return response_json["output_text"]
+    chunks = []
+    for item in response_json.get("output", []):
+        if not isinstance(item, dict):
+            continue
+        for content in item.get("content", []):
+            if isinstance(content, dict) and content.get("type") == "output_text":
+                chunks.append(content.get("text", ""))
+    return "".join(chunks)
+
+
+def fallback_smart_decision(current_alert, reason):
+    to_state = str(current_alert.get("to_state", "")).upper()
+    from_state = str(current_alert.get("from_state", "")).upper()
+    if to_state in {"CRITICAL", "DOWN", "UNREACHABLE"}:
+        notification_type = "notifications_loud"
+    elif to_state in {"WARNING", "UNKNOWN"}:
+        notification_type = "notifications_silent"
+    elif to_state == "OK" and from_state in {"CRITICAL", "DOWN", "UNREACHABLE"}:
+        notification_type = "notifications_silent"
+    else:
+        notification_type = "notifications_silent"
+    return {
+        "action": "send",
+        "notification_type": notification_type,
+        "reason": reason,
+        "confidence": 0.2,
+    }
+
+
+def decide_smart_notification(current_alert):
+    token = (
+        config.get("openai", "token", fallback="")
+        if config.has_section("openai")
+        else ""
+    )
+    if not token or token in {"YOUR-TOKEN", "<openai_token>"}:
+        return fallback_smart_decision(current_alert, "OpenAI is not configured.")
+
+    request_data = {
+        "current_alert": current_alert,
+        "recent_notifications": storage.smart_notification_history(80),
+        "user_instructions": load_smart_user_instructions(),
+    }
+    body = {
+        "model": config.get("openai", "model", fallback="gpt-4o-mini"),
+        "instructions": SMART_SYSTEM_INSTRUCTIONS,
+        "input": json.dumps(request_data, ensure_ascii=False),
+        "text": {
+            "format": {
+                "type": "json_schema",
+                "name": "smart_notification_decision",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "action": {"type": "string", "enum": ["send", "suppress"]},
+                        "notification_type": {
+                            "type": "string",
+                            "enum": ["notifications_loud", "notifications_silent"],
+                        },
+                        "reason": {"type": "string"},
+                        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+                    },
+                    "required": [
+                        "action",
+                        "notification_type",
+                        "reason",
+                        "confidence",
+                    ],
+                },
+            }
+        },
+    }
+    try:
+        response = requests.post(
+            "https://api.openai.com/v1/responses",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            },
+            json=body,
+            timeout=20,
+        )
+        response.raise_for_status()
+        decision = json.loads(extract_response_text(response.json()))
+        if decision.get("action") not in {"send", "suppress"}:
+            raise ValueError("invalid smart notification action")
+        if decision.get("notification_type") not in SMART_DECISION_TYPES:
+            raise ValueError("invalid smart notification delivery type")
+        return decision
+    except Exception as exc:
+        logger.warning("Smart notification decision failed: %s", exc)
+        return fallback_smart_decision(current_alert, f"AI decision failed: {exc}")
 
 
 # Method to check if a user is authenticated
@@ -1253,6 +1442,7 @@ async def post_print_service_graphs(
 async def send_automatic_notification(context: ContextTypes.DEFAULT_TYPE):
     event_id = context.job.data.get("id", "") if isinstance(context.job.data, dict) else ""
     raw_event = context.job.data.get("event", "") if isinstance(context.job.data, dict) else context.job.data
+    payload = context.job.data.get("payload") if isinstance(context.job.data, dict) else None
     if not event_id:
         event_id = f"legacy-{abs(hash(raw_event))}"
     notificaion_variables = raw_event.split(";", 7)
@@ -1280,6 +1470,35 @@ async def send_automatic_notification(context: ContextTypes.DEFAULT_TYPE):
         output=output,
         raw_event=raw_event,
     )
+
+    smart_decision = None
+    if type == SMART_NOTIFICATION_TYPE:
+        current_alert = smart_current_alert(
+            type,
+            ip,
+            hostname,
+            hostgroup,
+            description,
+            from_state,
+            to_state,
+            output,
+            payload,
+        )
+        smart_decision = decide_smart_notification(current_alert)
+        storage.add_audit(
+            actor_type="system",
+            action="smart_notification_decision",
+            target=event_id,
+            details=json.dumps(smart_decision, ensure_ascii=False)[:1000],
+        )
+        if smart_decision.get("action") == "suppress":
+            logger.info(
+                "Smart notification suppressed event %s: %s",
+                event_id,
+                smart_decision.get("reason", ""),
+            )
+            return
+        type = smart_decision.get("notification_type", "notifications_silent")
 
     # Get the state details in the form of emoji and text for both from_state
     # and to_state
